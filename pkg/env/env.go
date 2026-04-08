@@ -2,7 +2,6 @@ package env
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +21,10 @@ func Escape(key string) string {
 	return strings.ReplaceAll(key, "$", "$$")
 }
 
+func Unescape(key string) string {
+	return strings.ReplaceAll(key, "$$", "$")
+}
+
 func Environ() Map {
 	envs := make(Map)
 
@@ -37,14 +40,20 @@ func Environ() Map {
 	return envs
 }
 
-func Lookup(key string) (string, bool) {
+func RawLookup(key string) (string, bool) {
 	if key == "$" {
 		return "$", true
 	}
 
-	value, ok := os.LookupEnv(ToKey(key))
+	return os.LookupEnv(ToKey(key))
+}
 
-	return Expand(value), ok
+func Lookup(key string) (string, bool) {
+	if value, ok := RawLookup(key); ok {
+		return Expand(value), true
+	}
+
+	return "", false
 }
 
 func Get(key string) string {
@@ -62,6 +71,10 @@ func Or(key, defaultValue string) string {
 }
 
 func Expand(value string) string {
+	if value == "" || !strings.Contains(value, "$") {
+		return value
+	}
+
 	return os.Expand(value, Get)
 }
 
@@ -85,11 +98,11 @@ func ToKey(key string) string {
 	}, key)
 }
 
-func DecodeBytes(data []byte) (Map, error) {
-	return Decode(bytes.NewReader(data))
+func Unmarshal(data []byte) (Map, error) {
+	return UnmarshalString(string(data))
 }
 
-func DecodeString(data string) (Map, error) {
+func UnmarshalString(data string) (Map, error) {
 	return Decode(strings.NewReader(data))
 }
 

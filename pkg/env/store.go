@@ -3,6 +3,7 @@ package env
 import (
 	"maps"
 	"os"
+	"strings"
 )
 
 type Store map[string]string
@@ -24,7 +25,7 @@ func (s Store) Environ() Map {
 	return envs
 }
 
-func (s Store) Lookup(key string) (string, bool) {
+func (s Store) RawLookup(key string) (string, bool) {
 	if key == "$" {
 		return "$", true
 	}
@@ -32,10 +33,18 @@ func (s Store) Lookup(key string) (string, bool) {
 	key = ToKey(key)
 
 	if value, ok := s[key]; ok {
-		return s.Expand(value), true
+		return value, true
 	}
 
 	if value, ok := os.LookupEnv(key); ok {
+		return value, true
+	}
+
+	return "", false
+}
+
+func (s Store) Lookup(key string) (string, bool) {
+	if value, ok := s.Lookup(key); ok {
 		return s.Expand(value), true
 	}
 
@@ -57,6 +66,10 @@ func (s Store) Or(key, defaultValue string) string {
 }
 
 func (s Store) Expand(value string) string {
+	if !strings.Contains(value, "$") {
+		return value
+	}
+
 	return os.Expand(value, s.Get)
 }
 
