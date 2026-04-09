@@ -44,7 +44,7 @@ func (s Store) RawLookup(key string) (string, bool) {
 }
 
 func (s Store) Lookup(key string) (string, bool) {
-	if value, ok := s.Lookup(key); ok {
+	if value, ok := s.RawLookup(key); ok {
 		return s.Expand(value), true
 	}
 
