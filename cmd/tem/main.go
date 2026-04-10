@@ -63,8 +63,12 @@ func run(cfg *Config) error {
 			return fmt.Errorf("failed to get abs path for output file: %w", err)
 		}
 
+		if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+			return fmt.Errorf("failed to create full path for output file: %w", err)
+		}
+
 		if output, err = os.Create(abs); err != nil {
-			return fmt.Errorf("failed to open output file: %w", err)
+			return fmt.Errorf("failed to create output file: %w", err)
 		}
 		defer output.Close() //nolint:errcheck
 	}
