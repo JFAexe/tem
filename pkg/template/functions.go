@@ -16,6 +16,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -26,7 +27,10 @@ import (
 	"github.com/JFAexe/tem/pkg/env"
 )
 
-type Dict = map[string]any
+type (
+	Dict = map[string]any
+	List = []any
+)
 
 func CommonFuncs() template.FuncMap {
 	return template.FuncMap{
@@ -68,7 +72,7 @@ func CommonFuncs() template.FuncMap {
 		"split":              swapArgs(strings.Split),
 		"replace":            replace,
 		"join":               join,
-		"joinList":           swapArgs(strings.Join),
+		"joinList":           joinList,
 		"truncate":           truncate,
 		"repeat":             swapArgs(strings.Repeat),
 		"contains":           swapArgs(strings.Contains),
@@ -104,10 +108,14 @@ func CommonFuncs() template.FuncMap {
 		"fromHex":            fromHex,
 		"xor":                xor,
 		"dict":               dict,
-		"set":                set,
-		"unset":              unset,
-		"isSet":              isSet,
-		"merge":              merge,
+		"dictSet":            dictSet,
+		"dictUnset":          dictUnset,
+		"dictIsSet":          dictIsSet,
+		"dictMerge":          dictMerge,
+		"dictKeys":           dictKeys,
+		"dictValues":         dictValues,
+		"list":               list,
+		"listConcat":         listConcat,
 	}
 }
 
@@ -173,7 +181,17 @@ func replace(old, new, src string) string {
 	return strings.ReplaceAll(src, old, new)
 }
 
-func join(separator string, items ...string) string {
+func join(separator string, values ...any) string {
+	return joinList(separator, values)
+}
+
+func joinList(separator string, l List) string {
+	items := make([]string, len(l))
+
+	for i, v := range l {
+		items[i] = toString(v)
+	}
+
 	return strings.Join(items, separator)
 }
 
@@ -340,8 +358,8 @@ func toJSONPretty(value any) (string, error) {
 	return string(out), nil
 }
 
-func fromJSON(value string) (map[string]any, error) {
-	var out map[string]any
+func fromJSON(value string) (Dict, error) {
+	var out Dict
 
 	if err := json.Unmarshal([]byte(value), &out); err != nil {
 		return nil, fmt.Errorf("failed to decode json: %w", err)
@@ -359,8 +377,8 @@ func toYAML(value any) (string, error) {
 	return string(out), nil
 }
 
-func fromYAML(value string) (map[string]any, error) {
-	var out map[string]any
+func fromYAML(value string) (Dict, error) {
+	var out Dict
 
 	if err := yaml.Unmarshal([]byte(value), &out); err != nil {
 		return nil, fmt.Errorf("failed to decode yaml: %w", err)
@@ -378,8 +396,8 @@ func toTOML(value any) (string, error) {
 	return string(out), nil
 }
 
-func fromTOML(value string) (map[string]any, error) {
-	var out map[string]any
+func fromTOML(value string) (Dict, error) {
+	var out Dict
 
 	if err := toml.Unmarshal([]byte(value), &out); err != nil {
 		return nil, fmt.Errorf("failed to decode toml: %w", err)
@@ -440,28 +458,56 @@ func dict(kv ...any) (Dict, error) {
 	return d, nil
 }
 
-func set(key string, value any, d Dict) Dict {
+func dictSet(key string, value any, d Dict) Dict {
 	d[key] = value
 
 	return d
 }
 
-func unset(key string, d Dict) Dict {
+func dictUnset(key string, d Dict) Dict {
 	delete(d, key)
 
 	return d
 }
 
-func isSet(key string, d Dict) bool {
+func dictIsSet(key string, d Dict) bool {
 	_, ok := d[key]
 
 	return ok
 }
 
-func merge(from, to Dict) Dict {
+func dictMerge(from, to Dict) Dict {
 	maps.Copy(to, from)
 
 	return to
+}
+
+func dictKeys(d Dict) List {
+	l := make(List, 0, len(d))
+
+	for k := range d {
+		l = append(l, k)
+	}
+
+	return l
+}
+
+func dictValues(d Dict) List {
+	return slices.Collect(maps.Values(d))
+}
+
+func list(values ...any) List {
+	return values
+}
+
+func listConcat(ls ...List) List {
+	l := make(List, 0)
+
+	for i := range ls {
+		l = append(l, ls[i]...)
+	}
+
+	return l
 }
 
 func swapArgs[L, R, T any](fn func(L, R) T) func(R, L) T {
