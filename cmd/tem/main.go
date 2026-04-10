@@ -69,6 +69,10 @@ func run(cfg *Config) error {
 		defer output.Close()
 	}
 
+	if cfg.Envs == nil {
+		cfg.Envs = make(flag.EnvMap)
+	}
+
 	for _, path := range cfg.EnvFiles {
 		envs, err := readEnvFile(path)
 		if err != nil {
