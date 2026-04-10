@@ -54,7 +54,7 @@ func run(cfg *Config) error {
 		if input, err = os.Open(abs); err != nil {
 			return fmt.Errorf("failed to open input file: %w", err)
 		}
-		defer input.Close()
+		defer input.Close() //nolint:errcheck
 	}
 
 	if cfg.OutputPath != "" {
@@ -66,7 +66,7 @@ func run(cfg *Config) error {
 		if output, err = os.Create(abs); err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
 		}
-		defer output.Close()
+		defer output.Close() //nolint:errcheck
 	}
 
 	if cfg.Envs == nil {
@@ -121,7 +121,7 @@ func readEnvFile(path string) (env.Map, error) {
 	if err != nil {
 		return make(env.Map), fmt.Errorf("failed to open env file: %w", err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	envs, err := env.Decode(file)
 	if err != nil {
