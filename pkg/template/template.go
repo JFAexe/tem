@@ -11,20 +11,46 @@ import (
 	"github.com/JFAexe/tem/pkg/env"
 )
 
+type Option = func(t *Template)
+
+func WithEnvs(envs env.Map) Option {
+	return func(t *Template) {
+		maps.Copy(t.envs, envs)
+	}
+}
+
+func WithDelims(left, right string) Option {
+	return func(t *Template) {
+		if left = strings.TrimSpace(left); left == "" {
+			left = "{{"
+		}
+
+		if right = strings.TrimSpace(right); right == "" {
+			left = "}}"
+		}
+
+		t.Delims(left, right)
+	}
+}
+
 type Template struct {
 	*template.Template
 	envs env.Store
 }
 
-func New(envs map[string]string) *Template {
+func New(options ...Option) *Template {
 	t := &Template{
 		Template: template.New("root_template"),
 		envs:     make(env.Store),
 	}
 
-	maps.Copy(t.envs, envs)
+	for _, option := range options {
+		option(t)
+	}
 
-	t.Funcs(CommonFuncs()).Funcs(EnvFuncs(t.envs)).Funcs(TemplateFuncs(t.Template))
+	t.Funcs(CommonFuncs())
+	t.Funcs(EnvFuncs(t.envs))
+	t.Funcs(TemplateFuncs(t.Template))
 
 	return t
 }

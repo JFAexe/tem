@@ -17,6 +17,8 @@ import (
 type Config struct {
 	InputPath  string
 	OutputPath string
+	DelimLeft  string
+	DelimRight string
 	Envs       flag.EnvMap
 	EnvFiles   flag.StringSlice
 	Includes   flag.StringSlice
@@ -27,6 +29,8 @@ func main() {
 
 	stdflag.StringVar(&c.InputPath, "i", "", "Input file path")
 	stdflag.StringVar(&c.OutputPath, "o", "", "Output file path")
+	stdflag.StringVar(&c.DelimLeft, "l", "{{", "Template left delimeter")
+	stdflag.StringVar(&c.DelimRight, "r", "}}", "Template right delimeter")
 	stdflag.Var(&c.Envs, "e", "Extra environment variable (format: KEY_NAME=value)")
 	stdflag.Var(&c.EnvFiles, "f", "Env file path")
 	stdflag.Var(&c.Includes, "t", "Template include path or glob")
@@ -89,7 +93,10 @@ func run(cfg *Config) error {
 	var (
 		buf bytes.Buffer
 
-		tpl = template.New(cfg.Envs)
+		tpl = template.New(
+			template.WithEnvs(cfg.Envs),
+			template.WithDelims(cfg.DelimLeft, cfg.DelimRight),
+		)
 	)
 
 	if _, err := buf.ReadFrom(input); err != nil {
