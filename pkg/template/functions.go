@@ -16,6 +16,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"text/template"
@@ -35,6 +36,7 @@ type (
 func CommonFuncs() template.FuncMap {
 	return template.FuncMap{
 		"inline":             inline(template.New("")),
+		"ternary":            ternary,
 		"pwd":                os.Getwd,
 		"hostname":           os.Hostname,
 		"envs":               env.Environ,
@@ -79,6 +81,12 @@ func CommonFuncs() template.FuncMap {
 		"hasPrefix":          swapArgs(strings.HasPrefix),
 		"hasSuffix":          swapArgs(strings.HasSuffix),
 		"indent":             indent,
+		"regexMatch":         regexMatch,
+		"regexFind":          regexFind,
+		"regexFindAll":       regexFindAll,
+		"regexReplace":       regexReplace,
+		"regexSplit":         regexSplit,
+		"regexEscape":        regexEscape,
 		"timeNow":            timeNow,
 		"timeOffset":         timeOffset,
 		"timeTruncate":       timeTruncate,
@@ -108,14 +116,19 @@ func CommonFuncs() template.FuncMap {
 		"fromHex":            fromHex,
 		"xor":                xor,
 		"dict":               dict,
-		"dictSet":            dictSet,
-		"dictUnset":          dictUnset,
-		"dictIsSet":          dictIsSet,
-		"dictMerge":          dictMerge,
-		"dictKeys":           dictKeys,
-		"dictValues":         dictValues,
+		"get":                dictGet,
+		"set":                dictSet,
+		"unset":              dictUnset,
+		"isSet":              dictIsSet,
+		"merge":              dictMerge,
+		"pick":               dictPick,
+		"omit":               dictOmit,
+		"keys":               dictKeys,
+		"values":             dictValues,
 		"list":               list,
-		"listConcat":         listConcat,
+		"first":              listFirst,
+		"last":               listLast,
+		"concat":             listConcat,
 	}
 }
 
@@ -161,6 +174,14 @@ func inline(t *template.Template) func(value string, data ...any) (string, error
 
 		return buf.String(), nil
 	}
+}
+
+func ternary(truthy, falsy any, cond bool) any {
+	if cond {
+		return truthy
+	}
+
+	return falsy
 }
 
 func fileContent(filePath string) (string, error) {
@@ -232,6 +253,50 @@ func indent(level int, str string) string {
 	}
 
 	return builder.String()
+}
+
+func regexMatch(regex string, str string) (bool, error) {
+	return regexp.MatchString(regex, str)
+}
+
+func regexFind(regex string, str string) (string, error) {
+	rex, err := regexp.Compile(regex)
+	if err != nil {
+		return "", err
+	}
+
+	return rex.FindString(str), nil
+}
+
+func regexFindAll(regex string, n int, str string) ([]string, error) {
+	rex, err := regexp.Compile(regex)
+	if err != nil {
+		return make([]string, 0), err
+	}
+
+	return rex.FindAllString(str, n), nil
+}
+
+func regexReplace(regex string, rpl string, str string) (string, error) {
+	rex, err := regexp.Compile(regex)
+	if err != nil {
+		return "", err
+	}
+
+	return rex.ReplaceAllString(str, rpl), nil
+}
+
+func regexSplit(regex string, n int, str string) ([]string, error) {
+	rex, err := regexp.Compile(regex)
+	if err != nil {
+		return make([]string, 0), err
+	}
+
+	return rex.Split(str, n), nil
+}
+
+func regexEscape(str string) string {
+	return regexp.QuoteMeta(str)
 }
 
 func timeNow() time.Time {
@@ -445,17 +510,25 @@ func xor(key, value string) string {
 }
 
 func dict(kv ...any) (Dict, error) {
-	d := make(Dict)
+	out := make(Dict)
 
 	if len(kv)%2 != 0 {
-		return d, fmt.Errorf("amount of arguments for key-values should be even, got %d", len(kv))
+		return out, fmt.Errorf("amount of arguments for key-values should be even, got %d", len(kv))
 	}
 
 	for i := 0; i < len(kv); i += 2 {
-		d[toString(kv[i])] = kv[i+1]
+		out[toString(kv[i])] = kv[i+1]
 	}
 
-	return d, nil
+	return out, nil
+}
+
+func dictGet(key string, d Dict) any {
+	if v, ok := d[key]; ok {
+		return v
+	}
+
+	return ""
 }
 
 func dictSet(key string, value any, d Dict) Dict {
@@ -482,14 +555,38 @@ func dictMerge(from, to Dict) Dict {
 	return to
 }
 
-func dictKeys(d Dict) List {
-	l := make(List, 0, len(d))
+func dictPick(d Dict, keys ...string) Dict {
+	out := make(Dict, len(keys))
 
-	for k := range d {
-		l = append(l, k)
+	for _, k := range keys {
+		if v, ok := d[k]; ok {
+			out[k] = v
+		}
 	}
 
-	return l
+	return out
+}
+
+func dictOmit(d Dict, keys ...string) Dict {
+	out := make(Dict, len(d))
+
+	for k, v := range d {
+		if !slices.Contains(keys, k) {
+			out[k] = v
+		}
+	}
+
+	return out
+}
+
+func dictKeys(d Dict) List {
+	out := make(List, 0, len(d))
+
+	for k := range d {
+		out = append(out, k)
+	}
+
+	return out
 }
 
 func dictValues(d Dict) List {
@@ -500,14 +597,30 @@ func list(values ...any) List {
 	return values
 }
 
-func listConcat(ls ...List) List {
-	l := make(List, 0)
-
-	for i := range ls {
-		l = append(l, ls[i]...)
+func listFirst(l List) any {
+	if len(l) > 0 {
+		return l[0]
 	}
 
-	return l
+	return ""
+}
+
+func listLast(l List) any {
+	if len(l) > 0 {
+		return l[len(l)-1]
+	}
+
+	return ""
+}
+
+func listConcat(lists ...List) List {
+	out := make(List, 0)
+
+	for i := range lists {
+		out = append(out, lists[i]...)
+	}
+
+	return out
 }
 
 func swapArgs[L, R, T any](fn func(L, R) T) func(R, L) T {
