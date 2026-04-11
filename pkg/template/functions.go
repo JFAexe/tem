@@ -29,8 +29,9 @@ import (
 )
 
 type (
-	Dict = map[string]any
-	List = []any
+	Dict       = map[string]any
+	List       = []any
+	StringList = []string
 )
 
 func CommonFuncs() template.FuncMap {
@@ -96,7 +97,10 @@ func CommonFuncs() template.FuncMap {
 		"timeFormatTime":     timeFormatTime,
 		"timeFormatDate":     timeFormatDate,
 		"timeFormatDateTime": timeFormatDateTime,
+		"toAny":              toAny,
 		"toString":           toString,
+		"toList":             toList,
+		"toStringList":       toStringList,
 		"toMD5":              toMD5,
 		"toSHA1":             toSHA1,
 		"toSHA3":             toSHA3,
@@ -202,18 +206,12 @@ func replace(old, new, src string) string {
 	return strings.ReplaceAll(src, old, new)
 }
 
-func join(separator string, values ...any) string {
-	return joinList(separator, values)
+func join(sep string, values ...any) string {
+	return joinList(sep, values)
 }
 
-func joinList(separator string, l List) string {
-	items := make([]string, len(l))
-
-	for i, v := range l {
-		items[i] = toString(v)
-	}
-
-	return strings.Join(items, separator)
+func joinList(sep string, value any) string {
+	return strings.Join(toStringList(value), sep)
 }
 
 func truncate(size int, str string) string {
@@ -260,39 +258,39 @@ func regexMatch(regex string, str string) (bool, error) {
 }
 
 func regexFind(regex string, str string) (string, error) {
-	rex, err := regexp.Compile(regex)
+	exp, err := regexp.Compile(regex)
 	if err != nil {
 		return "", err
 	}
 
-	return rex.FindString(str), nil
+	return exp.FindString(str), nil
 }
 
-func regexFindAll(regex string, n int, str string) ([]string, error) {
-	rex, err := regexp.Compile(regex)
+func regexFindAll(regex string, n int, str string) (StringList, error) {
+	exp, err := regexp.Compile(regex)
 	if err != nil {
-		return make([]string, 0), err
+		return make(StringList, 0), err
 	}
 
-	return rex.FindAllString(str, n), nil
+	return exp.FindAllString(str, n), nil
 }
 
 func regexReplace(regex string, rpl string, str string) (string, error) {
-	rex, err := regexp.Compile(regex)
+	exp, err := regexp.Compile(regex)
 	if err != nil {
 		return "", err
 	}
 
-	return rex.ReplaceAllString(str, rpl), nil
+	return exp.ReplaceAllString(str, rpl), nil
 }
 
-func regexSplit(regex string, n int, str string) ([]string, error) {
-	rex, err := regexp.Compile(regex)
+func regexSplit(regex string, n int, str string) (StringList, error) {
+	exp, err := regexp.Compile(regex)
 	if err != nil {
-		return make([]string, 0), err
+		return make(StringList, 0), err
 	}
 
-	return rex.Split(str, n), nil
+	return exp.Split(str, n), nil
 }
 
 func regexEscape(str string) string {
@@ -345,6 +343,10 @@ func timeFormatDateTime(t time.Time) string {
 	return t.Format(time.DateTime)
 }
 
+func toAny(v any) any {
+	return v
+}
+
 func toString(value any) string {
 	if value == nil {
 		return ""
@@ -373,6 +375,14 @@ func toString(value any) string {
 	}
 
 	return fmt.Sprint(value)
+}
+
+func toList(value any) List {
+	return toTypedList(value, toAny)
+}
+
+func toStringList(value any) StringList {
+	return toTypedList(value, toString)
 }
 
 func toMD5(value string) string {
@@ -423,8 +433,8 @@ func toJSONPretty(value any) (string, error) {
 	return string(out), nil
 }
 
-func fromJSON(value string) (Dict, error) {
-	var out Dict
+func fromJSON(value string) (any, error) {
+	var out any
 
 	if err := json.Unmarshal([]byte(value), &out); err != nil {
 		return nil, fmt.Errorf("failed to decode json: %w", err)
@@ -442,8 +452,8 @@ func toYAML(value any) (string, error) {
 	return string(out), nil
 }
 
-func fromYAML(value string) (Dict, error) {
-	var out Dict
+func fromYAML(value string) (any, error) {
+	var out any
 
 	if err := yaml.Unmarshal([]byte(value), &out); err != nil {
 		return nil, fmt.Errorf("failed to decode yaml: %w", err)
@@ -597,17 +607,17 @@ func list(values ...any) List {
 	return values
 }
 
-func listFirst(l List) any {
-	if len(l) > 0 {
-		return l[0]
+func listFirst(l any) any {
+	if v := toList(l); len(v) > 0 {
+		return v[0]
 	}
 
 	return ""
 }
 
-func listLast(l List) any {
-	if len(l) > 0 {
-		return l[len(l)-1]
+func listLast(l any) any {
+	if v := toList(l); len(v) > 0 {
+		return v[len(v)-1]
 	}
 
 	return ""
@@ -627,4 +637,30 @@ func swapArgs[L, R, T any](fn func(L, R) T) func(R, L) T {
 	return func(r R, l L) T {
 		return fn(l, r)
 	}
+}
+
+func toTypedList[T any](value any, fn func(any) T) []T {
+	if value == nil {
+		return make([]T, 0)
+	}
+
+	if v, ok := value.([]T); ok {
+		return v
+	}
+
+	rv := reflect.ValueOf(value)
+
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return []T{fn(value)}
+	}
+
+	out := make([]T, 0, rv.Len())
+
+	for i := range rv.Len() {
+		if item := rv.Index(i).Interface(); item != nil {
+			out = append(out, fn(item))
+		}
+	}
+
+	return out
 }
