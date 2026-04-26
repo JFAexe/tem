@@ -1,0 +1,52 @@
+version: 2
+project_name: tem
+before:
+  hooks:
+  - go mod tidy
+builds:
+- id: tem-binary
+  main: ./cmd/tem
+  env:
+  - CGO_ENABLED=0
+  goos:
+  - linux
+  - windows
+  - darwin
+  goarch:
+  - amd64
+  - arm64
+  flags:
+  - -trimpath
+  ldflags:
+  - -s
+  - -w
+  - -X main.version={{ .Tag }}
+  - -X main.commit={{ .ShortCommit }}
+  - -X main.date={{ .Date }}
+archives:
+- id: tem-archive
+  ids:
+  - tem-binary
+  formats:
+  - tar.gz
+  - binary
+  format_overrides:
+  - goos: windows
+    formats:
+    - zip
+    - binary
+  files:
+  - LICENSE*
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+snapshot:
+  version_template: '{{ .Tag }}-next'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs?:'
+    - '^test:'
+    - '^chore:'
+    - '^bump'
