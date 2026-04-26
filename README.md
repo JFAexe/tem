@@ -1,6 +1,6 @@
-# tem - go template cli renderer
+# tem - tiny go template cli renderer
 ```shell
-echo '[{{ timeNow | timeFormatDateTime }}] {{ env "USER" }}@{{ hostname }}' | tem
+echo '[{{ time.Now | time.DateTime }}] {{ "USER" | env.Or "anonymous" }}@{{ hostname }} {{ "hello templates!" | string.Upper }}' | tem
 ```
 
 ## Installation
