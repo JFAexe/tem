@@ -2,17 +2,21 @@ package flag
 
 import (
 	"flag"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 )
 
-var _ flag.Value = (*StringSlice)(nil)
+var (
+	_ fmt.Stringer = (*StringSlice)(nil)
+	_ flag.Value   = (*StringSlice)(nil)
+)
 
 type StringSlice []string
 
 func (e *StringSlice) Set(value string) error {
-	if strings.TrimSpace(value) != "" {
+	if value = strings.TrimSpace(value); value != "" {
 		*e = append(*e, value)
 	}
 
