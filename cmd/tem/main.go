@@ -1,56 +1,101 @@
 package main
 
 import (
-	"bytes"
-	stdflag "flag"
+	"crypto/rand"
+	"flag"
 	"fmt"
+	"io"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
+
+	_ "time/tzdata"
 
 	"github.com/JFAexe/tem/pkg/env"
-	"github.com/JFAexe/tem/pkg/flag"
+	xflag "github.com/JFAexe/tem/pkg/flag"
 	"github.com/JFAexe/tem/pkg/template"
 )
 
-type Config struct {
-	InputPath  string
-	OutputPath string
-	DelimLeft  string
-	DelimRight string
-	Envs       flag.EnvMap
-	EnvFiles   flag.StringSlice
-	Includes   flag.StringSlice
+var (
+	version = "custom"
+	commit  = "unknown"
+	date    = "unknown date"
+)
+
+func init() {
+	xflag.SetUsage(
+		flag.CommandLine,
+		xflag.WithUsageExecutable(os.Args[0]),
+		xflag.WithUsageExec(runtime.GOOS != "windows"),
+		xflag.WithUsageVersion(fmt.Sprintf("%s (%s) built using %s on %s", version, commit, runtime.Version(), date)),
+		xflag.WithUsageDescription("tem - tiny go template cli renderer"),
+		xflag.WithUsageNotes(
+			"Multiple list values passed as separate flags (e.g. '-e KEY1=\"value1\" -e KEY2=\"value2\"')",
+			"Template definitions are parsed after root template",
+			"Passed envs and read .envs take precedence over process environment",
+			"Env values are expanded on lookup, supported substitutions: ':-', '-', ':+', '+', ':?', '?'",
+		),
+	)
 }
 
 func main() {
-	var c Config
-
-	stdflag.StringVar(&c.InputPath, "i", "", "Input file path")
-	stdflag.StringVar(&c.OutputPath, "o", "", "Output file path")
-	stdflag.StringVar(&c.DelimLeft, "l", "{{", "Template left delimeter")
-	stdflag.StringVar(&c.DelimRight, "r", "}}", "Template right delimeter")
-	stdflag.Var(&c.Envs, "e", "Extra environment variable (format: KEY_NAME=value)")
-	stdflag.Var(&c.EnvFiles, "f", "Env file path")
-	stdflag.Var(&c.Includes, "t", "Template include path or glob")
-	stdflag.Parse()
-
-	if err := run(&c); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to render template: %s\n", err)
+	if err := run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 
 		os.Exit(1)
 	}
 }
 
-func run(cfg *Config) error {
+func run(args []string) error {
+	args, xargs := xflag.ParseArgs(args)
+
+	if err := render(args); err != nil {
+		return fmt.Errorf("failed to render template: %w", err)
+	}
+
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+
+	if err := execute(xargs); err != nil {
+		return fmt.Errorf("failed to execute process: %w", err)
+	}
+
+	return nil
+}
+
+func render(args []string) error {
 	var (
-		input  = os.Stdin
-		output = os.Stdout
+		inputPath  string
+		outputPath string
+
+		input       = os.Stdin
+		output      = os.Stdout
+		delimLeft   = "{{"
+		delimRight  = "}}"
+		envs        = make(xflag.EnvMap)
+		envFiles    = make(xflag.StringSlice, 0)
+		definitions = make(xflag.StringSlice, 0)
 	)
 
-	if cfg.InputPath != "" {
-		abs, err := filepath.Abs(cfg.InputPath)
+	flag.StringVar(&inputPath, "i", "", "Input file `path`\n\nReads from stdin if not specified or set to '-'")
+	flag.StringVar(&outputPath, "o", "", "Output file `path`\n\nWrites to stdout if not specified or set to '-'")
+	flag.StringVar(&delimLeft, "l", delimLeft, "Left template `delimiter`\n\nResets to default if set to empty string")
+	flag.StringVar(&delimRight, "r", delimRight, "Right template `delimiter`\n\nResets to default if set to empty string")
+	flag.Var(&envs, "e", "List of values which are accessible as `envs`\n\nFormat: KEY_NAME=value")
+	flag.Var(&envFiles, "f", "List of .env file `paths`")
+	flag.Var(&definitions, "t", "List of template definition files `paths or globs`")
+
+	if err := flag.CommandLine.Parse(args[1:]); err != nil {
+		return fmt.Errorf("failed to parse flags: %w", err)
+	}
+
+	if inputPath = strings.TrimSpace(inputPath); inputPath != "" && inputPath != "-" {
+		abs, err := filepath.Abs(inputPath)
 		if err != nil {
 			return fmt.Errorf("failed to get abs path for input file: %w", err)
 		}
@@ -61,8 +106,13 @@ func run(cfg *Config) error {
 		defer input.Close() //nolint:errcheck
 	}
 
-	if cfg.OutputPath != "" {
-		abs, err := filepath.Abs(cfg.OutputPath)
+	raw, err := io.ReadAll(input)
+	if err != nil {
+		return fmt.Errorf("failed to read root template: %w", err)
+	}
+
+	if outputPath = strings.TrimSpace(outputPath); outputPath != "" && outputPath != "-" {
+		abs, err := filepath.Abs(outputPath)
 		if err != nil {
 			return fmt.Errorf("failed to get abs path for output file: %w", err)
 		}
@@ -77,38 +127,27 @@ func run(cfg *Config) error {
 		defer output.Close() //nolint:errcheck
 	}
 
-	if cfg.Envs == nil {
-		cfg.Envs = make(flag.EnvMap)
-	}
-
-	for _, path := range cfg.EnvFiles {
-		envs, err := readEnvFile(path)
+	for _, path := range envFiles {
+		dotenv, err := readDotEnvFile(path)
 		if err != nil {
 			return err
 		}
 
-		maps.Copy(cfg.Envs, envs)
+		maps.Copy(envs, dotenv)
 	}
 
-	var (
-		buf bytes.Buffer
-
-		tpl = template.New(
-			template.WithEnvs(cfg.Envs),
-			template.WithDelims(cfg.DelimLeft, cfg.DelimRight),
-		)
+	tpl := template.New(
+		fmt.Sprint("root_", strings.ToLower(rand.Text())),
+		template.WithEnvs(envs),
+		template.WithDelims(delimLeft, delimRight),
 	)
 
-	if _, err := buf.ReadFrom(input); err != nil {
-		return fmt.Errorf("failed to read input file: %w", err)
+	if _, err := tpl.Parse(string(raw)); err != nil {
+		return fmt.Errorf("failed to parse root template: %w", err)
 	}
 
-	if _, err := tpl.Parse(buf.String()); err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
-	}
-
-	if err := tpl.ParsePaths(cfg.Includes); err != nil {
-		return fmt.Errorf("failed to parse includes: %w", err)
+	if err := tpl.ParsePaths(definitions); err != nil {
+		return fmt.Errorf("failed to parse template definitions: %w", err)
 	}
 
 	if err := tpl.Execute(output, make(map[string]any)); err != nil {
@@ -118,25 +157,43 @@ func run(cfg *Config) error {
 	return nil
 }
 
-func readEnvFile(path string) (env.Map, error) {
+func execute(args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+
+	path, err := exec.LookPath(args[0])
+	if err != nil {
+		return fmt.Errorf("failed find %#q: %w", path, err)
+	}
+
+	if err = syscall.Exec(path, args, os.Environ()); err != nil {
+		return fmt.Errorf("failed to exec %#q: %w", path, err)
+	}
+
+	return nil
+}
+
+func readDotEnvFile(path string) (env.Map, error) {
 	if path := strings.TrimSpace(path); path == "" {
-		return make(env.Map), nil
+		return nil, nil
 	}
 
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return make(env.Map), fmt.Errorf("failed to get abs path for env file: %w", err)
+		return nil, fmt.Errorf("failed to get abs path for env file: %w", err)
 	}
 
 	file, err := os.Open(abs)
 	if err != nil {
-		return make(env.Map), fmt.Errorf("failed to open env file: %w", err)
+		return nil, fmt.Errorf("failed to open env file: %w", err)
 	}
 	defer file.Close() //nolint:errcheck
 
-	envs, err := env.Decode(file)
-	if err != nil {
-		return make(env.Map), fmt.Errorf("failed to parse env file: %w", err)
+	var envs env.Map
+
+	if err = env.NewDecoder(file, env.WithDecoderExpand(false)).Decode(&envs); err != nil {
+		return nil, fmt.Errorf("failed to parse env file: %w", err)
 	}
 
 	return envs, nil
