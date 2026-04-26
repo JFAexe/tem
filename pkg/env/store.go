@@ -3,26 +3,26 @@ package env
 import (
 	"maps"
 	"os"
-	"strings"
 )
 
 type Store map[string]string
 
 func (s Store) Environ() Map {
-	envs := make(Map)
-
-	for _, env := range os.Environ() {
-		key, value, err := ParseKV(env)
-		if err != nil {
-			continue
-		}
-
-		envs[key] = s.Expand(value)
-	}
+	envs := Environ()
 
 	maps.Copy(envs, s)
 
 	return envs
+}
+
+func (s Store) Set(key, value string) {
+	s[ToKey(key)] = value
+}
+
+func (s Store) IsSet(key string) bool {
+	_, ok := s.RawLookup(key)
+
+	return ok
 }
 
 func (s Store) RawLookup(key string) (string, bool) {
@@ -51,10 +51,24 @@ func (s Store) Lookup(key string) (string, bool) {
 	return "", false
 }
 
+func (s Store) RawGet(key string) string {
+	value, _ := s.RawLookup(key)
+
+	return value
+}
+
 func (s Store) Get(key string) string {
 	value, _ := s.Lookup(key)
 
 	return value
+}
+
+func (s Store) RawOr(key, defaultValue string) string {
+	if value, ok := s.RawLookup(key); ok && value != "" {
+		return value
+	}
+
+	return defaultValue
 }
 
 func (s Store) Or(key, defaultValue string) string {
@@ -66,15 +80,11 @@ func (s Store) Or(key, defaultValue string) string {
 }
 
 func (s Store) Expand(value string) string {
-	if !strings.Contains(value, "$") {
-		return value
-	}
-
-	return os.Expand(value, s.Get)
+	return RawExpand(value, s.Lookup)
 }
 
-func (s Store) IsSet(key string) bool {
-	_, ok := s.Lookup(key)
-
-	return ok
+func (s Store) Copy(m Map) {
+	for k, v := range m {
+		s[ToKey(k)] = v
+	}
 }

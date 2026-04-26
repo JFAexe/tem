@@ -1,43 +1,37 @@
 package env
 
 import (
-	"bufio"
-	"errors"
-	"fmt"
-	"io"
 	"os"
-	"strconv"
 	"strings"
+	"unicode"
 )
 
-var (
-	ErrNotKV           = errors.New("not an env key-value")
-	ErrInvalidKVFormat = errors.New("invalid env key-value format")
+type (
+	Map        = map[string]string
+	LookupFunc = func(value string) (string, bool)
+	ExpandFunc = func(value string) string
 )
 
-type Map = map[string]string
-
-func Escape(key string) string {
-	return strings.ReplaceAll(key, "$", "$$")
+func Escape(value string) string {
+	return strings.ReplaceAll(value, "$", "$$")
 }
 
-func Unescape(key string) string {
-	return strings.ReplaceAll(key, "$$", "$")
+func Unescape(value string) string {
+	return strings.ReplaceAll(value, "$$", "$")
 }
 
 func Environ() Map {
 	envs := make(Map)
 
-	for _, env := range os.Environ() {
-		key, value, err := ParseKV(env)
-		if err != nil {
-			continue
-		}
-
-		envs[key] = Expand(value)
-	}
+	_ = NewDecoder(strings.NewReader(strings.Join(os.Environ(), "\n")), WithDecoderExpand(false)).Decode(&envs)
 
 	return envs
+}
+
+func IsSet(key string) bool {
+	_, ok := RawLookup(key)
+
+	return ok
 }
 
 func RawLookup(key string) (string, bool) {
@@ -56,10 +50,24 @@ func Lookup(key string) (string, bool) {
 	return "", false
 }
 
+func RawGet(key string) string {
+	value, _ := RawLookup(key)
+
+	return value
+}
+
 func Get(key string) string {
 	value, _ := Lookup(key)
 
 	return value
+}
+
+func RawOr(key, defaultValue string) string {
+	if value, ok := RawLookup(key); ok && value != "" {
+		return value
+	}
+
+	return defaultValue
 }
 
 func Or(key, defaultValue string) string {
@@ -71,82 +79,15 @@ func Or(key, defaultValue string) string {
 }
 
 func Expand(value string) string {
-	if value == "" || !strings.Contains(value, "$") {
-		return value
-	}
-
-	return os.Expand(value, Get)
-}
-
-func IsSet(key string) bool {
-	_, ok := Lookup(key)
-
-	return ok
+	return RawExpand(value, Lookup)
 }
 
 func ToKey(key string) string {
 	return strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' {
-			return r - 'a' + 'A'
-		}
-
-		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			return r
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return unicode.ToUpper(r)
 		}
 
 		return '_'
 	}, key)
-}
-
-func Unmarshal(data []byte) (Map, error) {
-	return UnmarshalString(string(data))
-}
-
-func UnmarshalString(data string) (Map, error) {
-	return Decode(strings.NewReader(data))
-}
-
-func Decode(r io.Reader) (Map, error) {
-	var (
-		scanner = bufio.NewScanner(r)
-		envs    = make(Map)
-	)
-
-	for scanner.Scan() {
-		key, value, err := ParseKV(strings.TrimSpace(scanner.Text()))
-		if err != nil {
-			continue
-		}
-
-		envs[key] = Expand(value)
-	}
-
-	return envs, scanner.Err()
-}
-
-func ParseKV(kv string) (string, string, error) {
-	if kv = strings.TrimSpace(kv); kv == "" || strings.HasPrefix(kv, "#") {
-		return "", "", ErrNotKV
-	}
-
-	parts := strings.SplitN(kv, "=", 2)
-
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("%w: %#q (expected KEY=value)", ErrInvalidKVFormat, kv)
-	}
-
-	var (
-		key   = strings.TrimSpace(parts[0])
-		value = strings.TrimSpace(parts[1])
-	)
-
-	if key == "" {
-		return "", "", fmt.Errorf("%w: key is empty", ErrInvalidKVFormat)
-	}
-
-	if unquoted, err := strconv.Unquote(value); err == nil {
-		value = unquoted
-	}
-
-	return ToKey(key), value, nil
 }
