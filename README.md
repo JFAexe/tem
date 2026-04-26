@@ -4,15 +4,16 @@ echo '[{{ time.Now | time.DateTime }}] {{ "USER" | env.Or "anonymous" }}@{{ host
 ```
 
 ## Installation
-Via `go install`:
+
+### `go install`
 ```shell
 go install -trimpath -ldflags "-s -w" github.com/JFAexe/tem/cmd/tem@latest
 ```
 
-Prebuilt binaries:
+### Prebuilt binaries
 ```shell
 (
-  TEM_VERSION="0.4.0"
+  TEM_VERSION="0.4.1"
   wget "https://github.com/JFAexe/tem/releases/download/v${TEM_VERSION}/tem_${TEM_VERSION}_linux_amd64.tar.gz" -O "tem_${TEM_VERSION}.tar.gz"
   tar -xzf "tem_${TEM_VERSION}.tar.gz" -C "$HOME/.local/bin/" "tem"
 )
