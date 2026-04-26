@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/JFAexe/tem/pkg/env"
+	"github.com/JFAexe/tem/pkg/template/functions"
 )
 
 type Option = func(t *Template)
@@ -38,9 +39,9 @@ type Template struct {
 	envs env.Store
 }
 
-func New(options ...Option) *Template {
+func New(name string, options ...Option) *Template {
 	t := &Template{
-		Template: template.New("root_template"),
+		Template: template.New(name),
 		envs:     make(env.Store),
 	}
 
@@ -48,9 +49,7 @@ func New(options ...Option) *Template {
 		option(t)
 	}
 
-	t.Funcs(CommonFuncs())
-	t.Funcs(EnvFuncs(t.envs))
-	t.Funcs(TemplateFuncs(t.Template))
+	t.Funcs(functions.FuncMap(t.Template, t.envs))
 
 	return t
 }
@@ -62,12 +61,12 @@ func (t *Template) ParsePath(path string) error {
 
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return fmt.Errorf("failed to get abs path for template include files: %w", err)
+		return fmt.Errorf("failed to get abs path for template includes: %w", err)
 	}
 
 	if strings.ContainsAny(abs, "*?") || strings.Contains(abs, "**") {
 		if _, err := t.ParseGlob(abs); err != nil {
-			return fmt.Errorf("failed to parse glob template include files %#q: %w", abs, err)
+			return fmt.Errorf("failed to parse glob template includes %#q: %w", abs, err)
 		}
 
 		return nil
@@ -80,7 +79,7 @@ func (t *Template) ParsePath(path string) error {
 
 		if i.Mode().IsRegular() {
 			if _, err := t.ParseFiles(p); err != nil {
-				return fmt.Errorf("failed to parse template include file %#q: %w", p, err)
+				return fmt.Errorf("failed to parse template include %#q: %w", p, err)
 			}
 		}
 
