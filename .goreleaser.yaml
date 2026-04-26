@@ -29,12 +29,10 @@ archives:
   - tem-binary
   formats:
   - tar.gz
-  - binary
   format_overrides:
   - goos: windows
     formats:
     - zip
-    - binary
   files:
   - LICENSE*
 checksum:
