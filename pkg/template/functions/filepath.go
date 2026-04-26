@@ -14,65 +14,65 @@ type WalkInfo struct {
 
 type Filepath struct{}
 
-func (Filepath) Clean(s string) string {
+func (*Filepath) Clean(s string) string {
 	return filepath.Clean(s)
 }
 
-func (Filepath) Abs(s string) (string, error) {
+func (*Filepath) Abs(s string) (string, error) {
 	return filepath.Abs(s)
 }
 
-func (Filepath) IsAbs(s string) bool {
+func (*Filepath) IsAbs(s string) bool {
 	return filepath.IsAbs(s)
 }
 
-func (Filepath) Base(s string) string {
+func (*Filepath) Base(s string) string {
 	return filepath.Base(s)
 }
 
-func (Filepath) Dir(s string) string {
+func (*Filepath) Dir(s string) string {
 	return filepath.Dir(s)
 }
 
-func (Filepath) Ext(s string) string {
+func (*Filepath) Ext(s string) string {
 	return filepath.Ext(s)
 }
 
-func (Filepath) Join(elems ...string) string {
+func (*Filepath) Join(elems ...string) string {
 	return filepath.Join(elems...)
 }
 
-func (Filepath) Split(s string) []string {
+func (*Filepath) Split(s string) []string {
 	dir, file := filepath.Split(s)
 
 	return []string{dir, file}
 }
 
-func (Filepath) Match(pattern, name string) (bool, error) {
+func (*Filepath) Match(pattern, name string) (bool, error) {
 	return filepath.Match(pattern, name)
 }
 
-func (Filepath) Rel(target, base string) (string, error) {
+func (*Filepath) Rel(target, base string) (string, error) {
 	return filepath.Rel(target, base)
 }
 
-func (Filepath) ToSlash(s string) string {
+func (*Filepath) ToSlash(s string) string {
 	return filepath.ToSlash(s)
 }
 
-func (Filepath) FromSlash(s string) string {
+func (*Filepath) FromSlash(s string) string {
 	return filepath.FromSlash(s)
 }
 
-func (Filepath) VolumeName(s string) string {
+func (*Filepath) VolumeName(s string) string {
 	return filepath.VolumeName(s)
 }
 
-func (Filepath) Glob(s string) ([]string, error) {
+func (*Filepath) Glob(s string) ([]string, error) {
 	return filepath.Glob(s)
 }
 
-func (Filepath) Walk(root string, args ...any) ([]WalkInfo, error) {
+func (*Filepath) Walk(root string, args ...any) ([]WalkInfo, error) {
 	if root == "" {
 		return nil, fmt.Errorf("can't walk empty path")
 	}

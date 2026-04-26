@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"text/template"
@@ -14,6 +15,19 @@ import (
 )
 
 func FuncMap(t *template.Template, e env.Store) template.FuncMap {
+	var (
+		envFuncs      = &Env{envs: e}
+		fileFuncs     = new(File)
+		filepathFuncs = new(Filepath)
+		pathFuncs     = new(Path)
+		stringFuncs   = new(String)
+		regexFuncs    = &Regex{cache: make(map[string]*regexp.Regexp)}
+		timeFuncs     = new(Time)
+		dataFuncs     = &Data{envs: e}
+		mapFuncs      = new(Map)
+		listFuncs     = new(List)
+	)
+
 	return template.FuncMap{
 		"inline":   Inline(t),
 		"render":   Render(t),
@@ -21,46 +35,38 @@ func FuncMap(t *template.Template, e env.Store) template.FuncMap {
 		"pwd":      os.Getwd,
 		"hostname": os.Hostname,
 		"env": func(args ...any) any {
-			f := Env{envs: e}
-
 			if len(args) > 0 {
-				return f.Get(ToStringList(args)[0])
+				return envFuncs.Get(ToStringList(args)[0])
 			}
 
-			return f
+			return envFuncs
 		},
 		"file": func(args ...any) (any, error) {
-			var f File
-
 			if len(args) > 0 {
-				return f.Content(ToStringList(args)[0])
+				return fileFuncs.Content(ToStringList(args)[0])
 			}
 
-			return f, nil
+			return fileFuncs, nil
 		},
-		"filepath": func() any { return Filepath{} },
-		"path":     func() any { return Path{} },
-		"string":   func() any { return String{} },
-		"regex":    func() any { return Regex{} },
-		"time":     func() any { return Time{} },
-		"data":     func() any { return Data{envs: e} },
+		"filepath": func() any { return filepathFuncs },
+		"path":     func() any { return pathFuncs },
+		"string":   func() any { return stringFuncs },
+		"regex":    func() any { return regexFuncs },
+		"time":     func() any { return timeFuncs },
+		"data":     func() any { return dataFuncs },
 		"map": func(args ...any) (any, error) {
-			var f Map
-
 			if len(args) > 0 {
-				return f.New(args...)
+				return mapFuncs.New(args...)
 			}
 
-			return f, nil
+			return mapFuncs, nil
 		},
 		"list": func(args ...any) any {
-			var f List
-
 			if len(args) > 0 {
-				return f.New(args...)
+				return listFuncs.New(args...)
 			}
 
-			return f
+			return listFuncs
 		},
 		"toAny":        ToAny,
 		"toString":     ToString,
@@ -181,7 +187,7 @@ func render(t *template.Template, name string, data ...any) (string, error) {
 
 	if len(data) == 1 {
 		ctx = data[0]
-	} else if ctx, err = (Map{}).New(data...); err != nil {
+	} else if ctx, err = new(Map).New(data...); err != nil {
 		return "", err
 	}
 

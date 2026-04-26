@@ -42,7 +42,7 @@ type Data struct {
 	envs env.Store
 }
 
-func (f Data) Xor(key string, value any) string {
+func (*Data) Xor(key string, value any) string {
 	data := []byte(ToString(value))
 
 	for i := range data {
@@ -52,7 +52,7 @@ func (f Data) Xor(key string, value any) string {
 	return string(data)
 }
 
-func (f Data) Hash(kind string, value any) (string, error) {
+func (*Data) Hash(kind string, value any) (string, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 
 	hasher, ok := hashers[kind]
@@ -63,7 +63,7 @@ func (f Data) Hash(kind string, value any) (string, error) {
 	return hex.EncodeToString(hasher.Sum([]byte(ToString(value)))), nil
 }
 
-func (f Data) FromHex(data string) (string, error) {
+func (*Data) FromHex(data string) (string, error) {
 	raw, err := hex.DecodeString(data)
 	if err != nil {
 		return "", err
@@ -72,11 +72,11 @@ func (f Data) FromHex(data string) (string, error) {
 	return string(raw), nil
 }
 
-func (f Data) ToHex(value any) string {
+func (*Data) ToHex(value any) string {
 	return hex.EncodeToString([]byte(ToString(value)))
 }
 
-func (f Data) FromBase64(data string) (string, error) {
+func (*Data) FromBase64(data string) (string, error) {
 	raw, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
 		if raw, err = base64.URLEncoding.DecodeString(data); err != nil {
@@ -87,15 +87,15 @@ func (f Data) FromBase64(data string) (string, error) {
 	return string(raw), nil
 }
 
-func (f Data) ToBase64(value any) string {
+func (*Data) ToBase64(value any) string {
 	return base64.StdEncoding.EncodeToString([]byte(ToString(value)))
 }
 
-func (f Data) ToBase64URL(value any) string {
+func (*Data) ToBase64URL(value any) string {
 	return base64.URLEncoding.EncodeToString([]byte(ToString(value)))
 }
 
-func (f Data) FromJSON(data string) (any, error) {
+func (*Data) FromJSON(data string) (any, error) {
 	var out any
 
 	if err := json.Unmarshal([]byte(data), &out); err != nil {
@@ -105,7 +105,7 @@ func (f Data) FromJSON(data string) (any, error) {
 	return out, nil
 }
 
-func (f Data) ToJSON(value any) (string, error) {
+func (*Data) ToJSON(value any) (string, error) {
 	out, err := json.Marshal(value)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal json: %w", err)
@@ -114,7 +114,7 @@ func (f Data) ToJSON(value any) (string, error) {
 	return string(out), nil
 }
 
-func (f Data) ToJSONPretty(value any) (string, error) {
+func (*Data) ToJSONPretty(value any) (string, error) {
 	out, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal json: %w", err)
@@ -123,7 +123,7 @@ func (f Data) ToJSONPretty(value any) (string, error) {
 	return string(out), nil
 }
 
-func (f Data) FromYAML(data string) (any, error) {
+func (*Data) FromYAML(data string) (any, error) {
 	var out any
 
 	if err := yaml.Unmarshal([]byte(data), &out); err != nil {
@@ -133,7 +133,7 @@ func (f Data) FromYAML(data string) (any, error) {
 	return out, nil
 }
 
-func (f Data) ToYAML(value any) (string, error) {
+func (*Data) ToYAML(value any) (string, error) {
 	out, err := yaml.Marshal(value)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal yaml: %w", err)
@@ -142,7 +142,7 @@ func (f Data) ToYAML(value any) (string, error) {
 	return string(out), nil
 }
 
-func (f Data) FromTOML(data string) (any, error) {
+func (*Data) FromTOML(data string) (any, error) {
 	var out any
 
 	if err := toml.Unmarshal([]byte(data), &out); err != nil {
@@ -152,7 +152,7 @@ func (f Data) FromTOML(data string) (any, error) {
 	return out, nil
 }
 
-func (f Data) ToTOML(value any) (string, error) {
+func (*Data) ToTOML(value any) (string, error) {
 	out, err := toml.Marshal(value)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal toml: %w", err)
@@ -161,7 +161,7 @@ func (f Data) ToTOML(value any) (string, error) {
 	return string(out), nil
 }
 
-func (f Data) FromDotEnv(data string) (any, error) {
+func (*Data) FromDotEnv(data string) (any, error) {
 	var out env.Map
 
 	if err := env.Unmarshal([]byte(data), &out, env.WithDecoderExpand(false)); err != nil {
@@ -171,7 +171,7 @@ func (f Data) FromDotEnv(data string) (any, error) {
 	return out, nil
 }
 
-func (f Data) ToDotEnv(value env.Map) (string, error) {
+func (*Data) ToDotEnv(value env.Map) (string, error) {
 	out, err := env.Marshal(value, env.WithEncoderExpand(false))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal .env: %w", err)
@@ -180,7 +180,7 @@ func (f Data) ToDotEnv(value env.Map) (string, error) {
 	return string(out), nil
 }
 
-func (f Data) FromDotEnvExpanded(data string) (any, error) {
+func (f *Data) FromDotEnvExpanded(data string) (any, error) {
 	var out env.Map
 
 	if err := env.Unmarshal([]byte(data), &out, env.WithDecoderExpand(true), env.WithDecoderLookup(f.envs.Lookup)); err != nil {
@@ -190,7 +190,7 @@ func (f Data) FromDotEnvExpanded(data string) (any, error) {
 	return out, nil
 }
 
-func (f Data) ToDotEnvExpanded(value env.Map) (string, error) {
+func (f *Data) ToDotEnvExpanded(value env.Map) (string, error) {
 	out, err := env.Marshal(value, env.WithEncoderExpand(true), env.WithEncoderLookup(f.envs.Lookup))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal .env: %w", err)

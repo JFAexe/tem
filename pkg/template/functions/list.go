@@ -7,11 +7,11 @@ import (
 
 type List struct{}
 
-func (List) New(values ...any) []any {
+func (*List) New(values ...any) []any {
 	return values
 }
 
-func (List) First(l any) any {
+func (*List) First(l any) any {
 	if v := ToList(l); len(v) > 0 {
 		return v[0]
 	}
@@ -19,7 +19,7 @@ func (List) First(l any) any {
 	return ""
 }
 
-func (List) Last(l any) any {
+func (*List) Last(l any) any {
 	if v := ToList(l); len(v) > 0 {
 		return v[len(v)-1]
 	}
@@ -27,7 +27,7 @@ func (List) Last(l any) any {
 	return ""
 }
 
-func (List) Concat(values ...any) []any {
+func (*List) Concat(values ...any) []any {
 	out := make([]any, 0)
 
 	for i := range values {
@@ -37,11 +37,11 @@ func (List) Concat(values ...any) []any {
 	return out
 }
 
-func (List) Join(sep string, value any) string {
+func (*List) Join(sep string, value any) string {
 	return strings.Join(ToStringList(value), sep)
 }
 
-func (List) Reverse(l any) []any {
+func (*List) Reverse(l any) []any {
 	out := ToList(l)
 
 	slices.Reverse(out)
