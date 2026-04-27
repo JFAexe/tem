@@ -37,7 +37,7 @@ func init() {
 			"Multiple list values passed as separate flags (e.g. '-e KEY1=\"value1\" -e KEY2=\"value2\"')",
 			"Template definitions are parsed after root template",
 			"Passed envs and read .envs take precedence over process environment",
-			"Env values are expanded on lookup, supported substitutions: ':-', '-', ':+', '+', ':?', '?'",
+			"Env values are expanded on lookup, supported substitutions: ':-', '-', ':=', '=', ':+', '+', ':?', '?'",
 		),
 	)
 }
@@ -70,11 +70,10 @@ func run(args []string) error {
 
 func render(args []string) error {
 	var (
-		inputPath  string
-		outputPath string
-
 		input       = os.Stdin
 		output      = os.Stdout
+		inputPath   = "-"
+		outputPath  = "-"
 		delimLeft   = "{{"
 		delimRight  = "}}"
 		envs        = make(xflag.EnvMap)
@@ -82,8 +81,8 @@ func render(args []string) error {
 		definitions = make(xflag.StringSlice, 0)
 	)
 
-	flag.StringVar(&inputPath, "i", "", "Input file `path`\n\nReads from stdin if not specified or set to '-'")
-	flag.StringVar(&outputPath, "o", "", "Output file `path`\n\nWrites to stdout if not specified or set to '-'")
+	flag.StringVar(&inputPath, "i", inputPath, "Input file `path`\n\nReads from stdin if not specified or set to '-'")
+	flag.StringVar(&outputPath, "o", outputPath, "Output file `path`\n\nWrites to stdout if not specified or set to '-'")
 	flag.StringVar(&delimLeft, "l", delimLeft, "Left template `delimiter`\n\nResets to default if set to empty string")
 	flag.StringVar(&delimRight, "r", delimRight, "Right template `delimiter`\n\nResets to default if set to empty string")
 	flag.Var(&envs, "e", "List of values which are accessible as `envs`\n\nFormat: KEY_NAME=value")
@@ -136,9 +135,12 @@ func render(args []string) error {
 		maps.Copy(envs, dotenv)
 	}
 
+	if err := env.BatchSet(envs); err != nil {
+		return fmt.Errorf("failed to update process environment: %w", err)
+	}
+
 	tpl := template.New(
 		fmt.Sprint("root_", strings.ToLower(rand.Text())),
-		template.WithEnvs(envs),
 		template.WithDelims(delimLeft, delimRight),
 	)
 
