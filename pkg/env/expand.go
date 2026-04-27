@@ -9,6 +9,7 @@ import (
 
 var expandOps = []string{
 	":-", "-",
+	":=", "=",
 	":+", "+",
 	":?", "?",
 }
@@ -19,9 +20,7 @@ func RawExpand(value string, lookup LookupFunc) string {
 	}
 
 	if lookup == nil {
-		lookup = func(value string) (string, bool) {
-			return value, true
-		}
+		lookup = noopLookup
 	}
 
 	var (
@@ -90,14 +89,6 @@ func RawExpand(value string, lookup LookupFunc) string {
 	return out.String()
 }
 
-func isVarStart(r rune) bool {
-	return unicode.IsLetter(r) || r == '_'
-}
-
-func isVarPart(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
-}
-
 func expandBrace(expr string, lookup LookupFunc) string {
 	var (
 		op string
@@ -136,6 +127,22 @@ func expandBrace(expr string, lookup LookupFunc) string {
 		if unset {
 			return value
 		}
+	case ":=":
+		if unset || empty {
+			if err := Set(name, RawExpand(value, lookup)); err != nil {
+				exit(name, "failed to set env")
+			}
+
+			return value
+		}
+	case "=":
+		if unset {
+			if err := Set(name, RawExpand(value, lookup)); err != nil {
+				exit(name, "failed to set env")
+			}
+
+			return value
+		}
 	case ":+":
 		if !unset && !empty {
 			return value
@@ -161,12 +168,24 @@ func expandBrace(expr string, lookup LookupFunc) string {
 	return val
 }
 
-func exit(name, value string) {
-	if value == "" {
-		value = "parameter is null or not set"
+func noopLookup(value string) (string, bool) {
+	return value, true
+}
+
+func isVarStart(r rune) bool {
+	return unicode.IsLetter(r) || r == '_'
+}
+
+func isVarPart(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+}
+
+func exit(name, message string) {
+	if message == "" {
+		message = "parameter is null or not set"
 	}
 
-	fmt.Fprintf(os.Stderr, "%s: %s: %s\n", os.Args[0], name, value)
+	fmt.Fprintf(os.Stderr, "%s: %s: %s\n", os.Args[0], name, message)
 
 	os.Exit(1)
 }

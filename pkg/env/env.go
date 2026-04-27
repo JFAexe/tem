@@ -20,12 +20,56 @@ func Unescape(value string) string {
 	return strings.ReplaceAll(value, "$$", "$")
 }
 
-func Environ() Map {
+func ToKey(key string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return unicode.ToUpper(r)
+		}
+
+		return '_'
+	}, key)
+}
+
+func Expand(value string) string {
+	return RawExpand(value, Lookup)
+}
+
+func Environ() (Map, error) {
 	envs := make(Map)
 
-	_ = NewDecoder(strings.NewReader(strings.Join(os.Environ(), "\n")), WithDecoderExpand(false)).Decode(&envs)
+	if err := Unmarshal([]byte(strings.Join(os.Environ(), "\n")), &envs, WithDecoderExpand(false)); err != nil {
+		return nil, err
+	}
 
-	return envs
+	return envs, nil
+}
+
+func Set(key, value string) error {
+	return os.Setenv(ToKey(key), value)
+}
+
+func BatchSet(m Map) error {
+	for k, v := range m {
+		if err := Set(k, v); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func Unset(key string) error {
+	return os.Unsetenv(ToKey(key))
+}
+
+func BatchUnset(keys []string) error {
+	for _, k := range keys {
+		if err := Unset(k); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func IsSet(key string) bool {
@@ -76,18 +120,4 @@ func Or(key, defaultValue string) string {
 	}
 
 	return defaultValue
-}
-
-func Expand(value string) string {
-	return RawExpand(value, Lookup)
-}
-
-func ToKey(key string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			return unicode.ToUpper(r)
-		}
-
-		return '_'
-	}, key)
 }
