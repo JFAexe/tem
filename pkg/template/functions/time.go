@@ -4,6 +4,14 @@ import "time"
 
 type Time struct{}
 
+func TimeNamespace() func() any {
+	n := new(Time)
+
+	return func() any {
+		return n
+	}
+}
+
 func (*Time) Now() time.Time {
 	return time.Now()
 }

@@ -9,6 +9,16 @@ type Regex struct {
 	cache map[string]*regexp.Regexp
 }
 
+func RegexNamespace() func() any {
+	n := &Regex{
+		cache: make(map[string]*regexp.Regexp),
+	}
+
+	return func() any {
+		return n
+	}
+}
+
 func (*Regex) Escape(str string) string {
 	return regexp.QuoteMeta(str)
 }

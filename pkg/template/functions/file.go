@@ -7,6 +7,18 @@ import (
 
 type File struct{}
 
+func FileNamespace() func(...any) (any, error) {
+	n := new(File)
+
+	return func(args ...any) (any, error) {
+		if len(args) > 0 {
+			return n.Content(ToStringList(args)[0])
+		}
+
+		return n, nil
+	}
+}
+
 func (*File) Content(path string) (string, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {

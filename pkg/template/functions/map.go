@@ -8,6 +8,18 @@ import (
 
 type Map struct{}
 
+func MapNamespace() func(...any) (any, error) {
+	n := new(Map)
+
+	return func(args ...any) (any, error) {
+		if len(args) > 0 {
+			return n.New(args...)
+		}
+
+		return n, nil
+	}
+}
+
 func (*Map) New(kv ...any) (map[string]any, error) {
 	out := make(map[string]any)
 

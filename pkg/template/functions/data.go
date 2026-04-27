@@ -38,8 +38,14 @@ var hashers = map[string]hash.Hash{
 	"sha512":     sha512.New(),
 }
 
-type Data struct {
-	envs env.Store
+type Data struct{}
+
+func DataNamespace() func() any {
+	n := new(Data)
+
+	return func() any {
+		return n
+	}
 }
 
 func (*Data) Xor(key string, value any) string {
@@ -180,18 +186,18 @@ func (*Data) ToDotEnv(value env.Map) (string, error) {
 	return string(out), nil
 }
 
-func (f *Data) FromDotEnvExpanded(data string) (any, error) {
+func (*Data) FromDotEnvExpanded(data string) (any, error) {
 	var out env.Map
 
-	if err := env.Unmarshal([]byte(data), &out, env.WithDecoderExpand(true), env.WithDecoderLookup(f.envs.Lookup)); err != nil {
+	if err := env.Unmarshal([]byte(data), &out, env.WithDecoderExpand(true), env.WithDecoderLookup(env.Lookup)); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
 	}
 
 	return out, nil
 }
 
-func (f *Data) ToDotEnvExpanded(value env.Map) (string, error) {
-	out, err := env.Marshal(value, env.WithEncoderExpand(true), env.WithEncoderLookup(f.envs.Lookup))
+func (*Data) ToDotEnvExpanded(value env.Map) (string, error) {
+	out, err := env.Marshal(value, env.WithEncoderExpand(true), env.WithEncoderLookup(env.Lookup))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal .env: %w", err)
 	}

@@ -2,8 +2,18 @@ package functions
 
 import "github.com/JFAexe/tem/pkg/env"
 
-type Env struct {
-	envs env.Store
+type Env struct{}
+
+func EnvNamespace() func(...any) any {
+	n := new(Env)
+
+	return func(args ...any) any {
+		if len(args) > 0 {
+			return n.Get(ToStringList(args)[0])
+		}
+
+		return n
+	}
 }
 
 func (*Env) Escape(value string) string {
@@ -14,42 +24,50 @@ func (*Env) Unescape(value string) string {
 	return env.Unescape(value)
 }
 
-func (f *Env) Map() env.Map {
-	return f.envs.Environ()
+func (*Env) ToKey(key string) string {
+	return env.ToKey(key)
 }
 
-func (f *Env) Set(key string, value any) *Env {
-	f.envs.Set(key, ToString(value))
-
-	return f
+func (*Env) Expand(value string) string {
+	return env.Expand(value)
 }
 
-func (f *Env) IsSet(key string) bool {
-	return f.envs.IsSet(key)
+func (*Env) Map() (env.Map, error) {
+	return env.Environ()
 }
 
-func (f *Env) Get(key string) string {
-	return f.envs.Get(key)
+func (*Env) Set(key string, value any) error {
+	return env.Set(key, ToString(value))
 }
 
-func (f *Env) RawGet(key string) string {
-	return f.envs.RawGet(key)
+func (*Env) BatchSet(m any) error {
+	return env.BatchSet(ToStringMap(m))
 }
 
-func (f *Env) RawOr(def, key string) string {
-	return f.envs.RawOr(key, def)
+func (*Env) Unset(key string) error {
+	return env.Unset(key)
 }
 
-func (f *Env) Or(def, key string) string {
-	return f.envs.Or(key, def)
+func (*Env) BatchUnset(keys ...any) error {
+	return env.BatchUnset(ToStringList(keys))
 }
 
-func (f *Env) Expand(value string) string {
-	return f.envs.Expand(value)
+func (*Env) IsSet(key string) bool {
+	return env.IsSet(key)
 }
 
-func (f *Env) Copy(m env.Map) *Env {
-	f.envs.Copy(m)
+func (*Env) Get(key string) string {
+	return env.Get(key)
+}
 
-	return f
+func (*Env) RawGet(key string) string {
+	return env.RawGet(key)
+}
+
+func (*Env) RawOr(def, key string) string {
+	return env.RawOr(key, def)
+}
+
+func (*Env) Or(def, key string) string {
+	return env.Or(key, def)
 }

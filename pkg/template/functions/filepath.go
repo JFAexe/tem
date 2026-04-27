@@ -14,6 +14,14 @@ type WalkInfo struct {
 
 type Filepath struct{}
 
+func FilepathNamespace() func() any {
+	n := new(Filepath)
+
+	return func() any {
+		return n
+	}
+}
+
 func (*Filepath) Clean(s string) string {
 	return filepath.Clean(s)
 }

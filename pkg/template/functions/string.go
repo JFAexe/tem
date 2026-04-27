@@ -7,6 +7,14 @@ import (
 
 type String struct{}
 
+func StringNamespace() func() any {
+	n := new(String)
+
+	return func() any {
+		return n
+	}
+}
+
 func (*String) Quote(s string) string {
 	return fmt.Sprintf("%q", s)
 }

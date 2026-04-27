@@ -3,22 +3,14 @@ package template
 import (
 	"fmt"
 	"io/fs"
-	"maps"
 	"path/filepath"
 	"strings"
 	"text/template"
 
-	"github.com/JFAexe/tem/pkg/env"
 	"github.com/JFAexe/tem/pkg/template/functions"
 )
 
 type Option = func(t *Template)
-
-func WithEnvs(envs env.Map) Option {
-	return func(t *Template) {
-		maps.Copy(t.envs, envs)
-	}
-}
 
 func WithDelims(left, right string) Option {
 	return func(t *Template) {
@@ -36,20 +28,18 @@ func WithDelims(left, right string) Option {
 
 type Template struct {
 	*template.Template
-	envs env.Store
 }
 
 func New(name string, options ...Option) *Template {
 	t := &Template{
 		Template: template.New(name),
-		envs:     make(env.Store),
 	}
 
 	for _, option := range options {
 		option(t)
 	}
 
-	t.Funcs(functions.FuncMap(t.Template, t.envs))
+	t.Funcs(functions.FuncMap(t.Template))
 
 	return t
 }

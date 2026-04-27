@@ -7,6 +7,18 @@ import (
 
 type List struct{}
 
+func ListNamespace() func(...any) any {
+	n := new(List)
+
+	return func(args ...any) any {
+		if len(args) > 0 {
+			return n.New(args...)
+		}
+
+		return n
+	}
+}
+
 func (*List) New(values ...any) []any {
 	return values
 }

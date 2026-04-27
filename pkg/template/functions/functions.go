@@ -6,72 +6,34 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"regexp"
 	"slices"
 	"strings"
 	"text/template"
-
-	"github.com/JFAexe/tem/pkg/env"
 )
 
-func FuncMap(t *template.Template, e env.Store) template.FuncMap {
-	var (
-		envFuncs      = &Env{envs: e}
-		fileFuncs     = new(File)
-		filepathFuncs = new(Filepath)
-		pathFuncs     = new(Path)
-		stringFuncs   = new(String)
-		regexFuncs    = &Regex{cache: make(map[string]*regexp.Regexp)}
-		timeFuncs     = new(Time)
-		dataFuncs     = &Data{envs: e}
-		mapFuncs      = new(Map)
-		listFuncs     = new(List)
-	)
-
+func FuncMap(t *template.Template) template.FuncMap {
 	return template.FuncMap{
-		"inline":   Inline(t),
-		"render":   Render(t),
-		"ternary":  Ternary,
-		"pwd":      os.Getwd,
-		"hostname": os.Hostname,
-		"env": func(args ...any) any {
-			if len(args) > 0 {
-				return envFuncs.Get(ToStringList(args)[0])
-			}
-
-			return envFuncs
-		},
-		"file": func(args ...any) (any, error) {
-			if len(args) > 0 {
-				return fileFuncs.Content(ToStringList(args)[0])
-			}
-
-			return fileFuncs, nil
-		},
-		"filepath": func() any { return filepathFuncs },
-		"path":     func() any { return pathFuncs },
-		"string":   func() any { return stringFuncs },
-		"regex":    func() any { return regexFuncs },
-		"time":     func() any { return timeFuncs },
-		"data":     func() any { return dataFuncs },
-		"map": func(args ...any) (any, error) {
-			if len(args) > 0 {
-				return mapFuncs.New(args...)
-			}
-
-			return mapFuncs, nil
-		},
-		"list": func(args ...any) any {
-			if len(args) > 0 {
-				return listFuncs.New(args...)
-			}
-
-			return listFuncs
-		},
+		"inline":       Inline(t),
+		"render":       Render(t),
+		"ternary":      Ternary,
+		"pwd":          os.Getwd,
+		"hostname":     os.Hostname,
+		"env":          EnvNamespace(),
+		"file":         FileNamespace(),
+		"filepath":     FilepathNamespace(),
+		"path":         PathNamespace(),
+		"string":       StringNamespace(),
+		"regex":        RegexNamespace(),
+		"time":         TimeNamespace(),
+		"data":         DataNamespace(),
+		"map":          MapNamespace(),
+		"list":         ListNamespace(),
 		"toAny":        ToAny,
 		"toString":     ToString,
 		"toList":       ToList,
 		"toStringList": ToStringList,
+		"toMap":        ToMap,
+		"toStringMap":  ToStringMap,
 	}
 }
 
@@ -153,6 +115,14 @@ func ToStringList(value any) []string {
 	return toTypedList(value, ToString)
 }
 
+func ToMap(value any) map[string]any {
+	return toTypedMap(value, ToAny)
+}
+
+func ToStringMap(value any) map[string]string {
+	return toTypedMap(value, ToString)
+}
+
 func toTypedList[T any](value any, fn func(any) T) []T {
 	if value == nil {
 		return make([]T, 0)
@@ -177,6 +147,33 @@ func toTypedList[T any](value any, fn func(any) T) []T {
 	}
 
 	return out
+}
+
+func toTypedMap[T any](value any, fn func(any) T) map[string]T {
+	if value == nil {
+		return make(map[string]T)
+	}
+
+	switch rv := reflect.ValueOf(value); rv.Kind() {
+	case reflect.Map:
+		out := make(map[string]T, rv.Len())
+
+		for iter := rv.MapRange(); iter.Next(); {
+			out[ToString(iter.Key().Interface())] = fn(iter.Value().Interface())
+		}
+
+		return out
+	case reflect.Slice, reflect.Array:
+		out := make(map[string]T, rv.Len())
+
+		for i := range rv.Len() {
+			out[ToString(i)] = fn(rv.Index(i).Interface())
+		}
+
+		return out
+	}
+
+	return map[string]T{"0": fn(value)}
 }
 
 func render(t *template.Template, name string, data ...any) (string, error) {
