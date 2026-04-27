@@ -20,7 +20,7 @@ builds:
   ldflags:
   - -s
   - -w
-  - -X main.version={{ .Tag }}
+  - -X main.version={{ .Version }}
   - -X main.commit={{ .ShortCommit }}
   - -X main.date={{ .Date }}
 archives:
@@ -39,7 +39,7 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 snapshot:
-  version_template: '{{ .Tag }}-next'
+  version_template: '{{ .Version }}-next'
 changelog:
   sort: asc
   filters:
