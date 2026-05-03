@@ -1,15 +1,23 @@
 package functions
 
 import (
-	"fmt"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
+var ErrEmptyPath = errors.New("can't walk empty path")
+
 type WalkInfo struct {
-	os.FileInfo
+	Name     string
 	Path     string
 	FullPath string
+	IsFile   bool
+	IsDir    bool
 }
 
 type Filepath struct{}
@@ -57,7 +65,7 @@ func (*Filepath) Split(s string) []string {
 }
 
 func (*Filepath) Match(pattern, name string) (bool, error) {
-	return filepath.Match(pattern, name)
+	return doublestar.Match(pattern, name)
 }
 
 func (*Filepath) Rel(target, base string) (string, error) {
@@ -77,37 +85,41 @@ func (*Filepath) VolumeName(s string) string {
 }
 
 func (*Filepath) Glob(s string) ([]string, error) {
-	return filepath.Glob(s)
+	return doublestar.FilepathGlob(s)
 }
 
-func (*Filepath) Walk(root string, args ...any) ([]WalkInfo, error) {
-	if root == "" {
-		return nil, fmt.Errorf("can't walk empty path")
+func (*Filepath) Walk(root string, args ...bool) ([]WalkInfo, error) {
+	if root = strings.TrimSpace(root); root == "" {
+		return nil, ErrEmptyPath
 	}
 
 	var (
 		entries []WalkInfo
+		pattern string
 		skipDir bool
 	)
 
 	for _, arg := range args {
-		if v, ok := arg.(bool); ok {
-			skipDir = v
-		}
+		skipDir = arg
 	}
 
-	if err := filepath.Walk(root, func(p string, i os.FileInfo, e error) error {
-		if e != nil {
-			return fmt.Errorf("failed to walk dir: %w", e)
-		}
+	root, pattern = doublestar.SplitPattern(root)
 
-		if skipDir && i.IsDir() {
+	if !strings.ContainsAny(pattern, "*^!?[]{}") {
+		root = filepath.Join(root, pattern)
+		pattern = "**"
+	}
+
+	if err := doublestar.GlobWalk(os.DirFS(filepath.Clean(root)), pattern, func(p string, d fs.DirEntry) (e error) {
+		if skipDir && d.IsDir() {
 			return nil
 		}
 
 		info := WalkInfo{
-			Path:     p,
-			FileInfo: i,
+			Name:   d.Name(),
+			Path:   p,
+			IsFile: d.Type().IsRegular(),
+			IsDir:  d.IsDir(),
 		}
 
 		if info.FullPath, e = filepath.Abs(info.Path); e != nil {

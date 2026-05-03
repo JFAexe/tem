@@ -7,6 +7,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/bmatcuk/doublestar/v4"
+
 	"github.com/JFAexe/tem/pkg/template/functions"
 )
 
@@ -44,39 +46,6 @@ func New(name string, options ...Option) *Template {
 	return t
 }
 
-func (t *Template) ParsePath(path string) error {
-	if path := strings.TrimSpace(path); path == "" {
-		return nil
-	}
-
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return fmt.Errorf("failed to get abs path for template includes: %w", err)
-	}
-
-	if strings.ContainsAny(abs, "*?") || strings.Contains(abs, "**") {
-		if _, err := t.ParseGlob(abs); err != nil {
-			return fmt.Errorf("failed to parse glob template includes %#q: %w", abs, err)
-		}
-
-		return nil
-	}
-
-	return filepath.Walk(abs, func(p string, i fs.FileInfo, e error) error {
-		if e != nil {
-			return e
-		}
-
-		if i.Mode().IsRegular() {
-			if _, err := t.ParseFiles(p); err != nil {
-				return fmt.Errorf("failed to parse template include %#q: %w", p, err)
-			}
-		}
-
-		return nil
-	})
-}
-
 func (t *Template) ParsePaths(paths []string) error {
 	if len(paths) == 0 {
 		return nil
@@ -86,6 +55,49 @@ func (t *Template) ParsePaths(paths []string) error {
 		if err := t.ParsePath(path); err != nil {
 			return fmt.Errorf("failed to parse paths: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func (t *Template) ParsePath(path string) (err error) {
+	if path := strings.TrimSpace(path); path == "" {
+		return nil
+	}
+
+	var paths []string
+
+	if strings.ContainsAny(path, "*^!?[]{}") {
+		if paths, err = doublestar.FilepathGlob(path); err != nil {
+			return fmt.Errorf("failed to walk template includes glob %#q: %w", path, err)
+		}
+	} else {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return fmt.Errorf("failed to get abs path for template includes: %w", err)
+		}
+
+		if err = filepath.WalkDir(abs, func(p string, d fs.DirEntry, e error) error {
+			if e != nil {
+				return e
+			}
+
+			if d.Type().IsRegular() {
+				if p, e = filepath.Abs(p); e != nil {
+					return fmt.Errorf("failed to get abs path for %#q: %w", d.Name(), err)
+				}
+
+				paths = append(paths, p)
+			}
+
+			return nil
+		}); err != nil {
+			return fmt.Errorf("failed to walk template includes path %#q: %w", path, err)
+		}
+	}
+
+	if _, err := t.ParseFiles(paths...); err != nil {
+		return fmt.Errorf("failed to parse template includes: %w", err)
 	}
 
 	return nil

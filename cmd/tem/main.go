@@ -35,6 +35,7 @@ func init() {
 		xflag.WithUsageDescription("tem - tiny go template cli renderer"),
 		xflag.WithUsageNotes(
 			"Multiple list values passed as separate flags (e.g. '-e KEY1=\"value1\" -e KEY2=\"value2\"')",
+			"Glob patterns support '**', '{groups,...}' and '[classes]'",
 			"Template definitions are parsed after root template",
 			"Passed envs and read .envs take precedence over process environment",
 			"Env values are expanded on lookup, supported substitutions: ':-', '-', ':=', '=', ':+', '+', ':?', '?'",
