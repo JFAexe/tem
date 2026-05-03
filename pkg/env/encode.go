@@ -6,7 +6,6 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"strconv"
 )
 
 type EncoderOption = func(d *Encoder)
@@ -62,7 +61,7 @@ func (e *Encoder) Encode(v any) error {
 			val = RawExpand(val, e.lookup)
 		}
 
-		if _, err := fmt.Fprintf(e.w, "%s=%s", key, strconv.Quote(val)); err != nil {
+		if _, err := fmt.Fprintf(e.w, "%s=%q", ToKey(key), val); err != nil {
 			return fmt.Errorf("env: encoding error: %w", err)
 		}
 	}
