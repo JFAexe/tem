@@ -5,36 +5,58 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
-	"reflect"
-	"slices"
 	"strings"
 	"text/template"
 )
 
-func FuncMap(t *template.Template) template.FuncMap {
-	return template.FuncMap{
-		"inline":       Inline(t),
-		"render":       Render(t),
-		"ternary":      Ternary,
-		"pwd":          os.Getwd,
-		"hostname":     os.Hostname,
-		"env":          EnvNamespace(),
-		"file":         FileNamespace(),
-		"filepath":     FilepathNamespace(),
-		"path":         PathNamespace(),
-		"string":       StringNamespace(),
-		"regex":        RegexNamespace(),
-		"time":         TimeNamespace(),
-		"data":         DataNamespace(),
-		"map":          MapNamespace(),
-		"list":         ListNamespace(),
-		"toAny":        ToAny,
-		"toString":     ToString,
-		"toList":       ToList,
-		"toStringList": ToStringList,
-		"toMap":        ToMap,
-		"toStringMap":  ToStringMap,
+func Namespace[T any](n T) func() any {
+	return func() any {
+		return n
 	}
+}
+
+func VarargNamespace[T any](n T, fn func(T, []any) (any, error)) func(...any) (any, error) {
+	return func(args ...any) (any, error) {
+		if len(args) > 0 {
+			return fn(n, args)
+		}
+
+		return n, nil
+	}
+}
+
+func FuncMap(t *template.Template) template.FuncMap {
+	runeFuncs := NewRuneFuncs()
+
+	return template.FuncMap{
+		"inline":   Inline(t),
+		"render":   Render(t),
+		"ternary":  Ternary,
+		"pwd":      os.Getwd,
+		"hostname": os.Hostname,
+		"env":      VarargNamespace(new(Env), EnvVarargInit),
+		"file":     VarargNamespace(new(File), FileVarargInit),
+		"filepath": Namespace(new(Filepath)),
+		"path":     Namespace(new(Path)),
+		"string":   Namespace(new(String)),
+		"regex":    Namespace(NewRegexFuncs()),
+		"math":     Namespace(new(Math)),
+		"time":     Namespace(new(Time)),
+		"data":     Namespace(new(Data)),
+		"rune":     Namespace(runeFuncs),
+		"random":   Namespace(NewRandomFuncs(runeFuncs)),
+		"map":      VarargNamespace(new(Map), MapVarargInit),
+		"list":     VarargNamespace(new(List), ListVarargInit),
+		"to":       Namespace(new(Convert)),
+	}
+}
+
+func Ternary(truthy, falsy any, cond bool) any {
+	if cond {
+		return truthy
+	}
+
+	return falsy
 }
 
 func Render(t *template.Template) func(name string, data ...any) (string, error) {
@@ -63,117 +85,6 @@ func Inline(t *template.Template) func(value string, data ...any) (string, error
 
 		return render(clone, name, data...)
 	}
-}
-
-func Ternary(truthy, falsy any, cond bool) any {
-	if cond {
-		return truthy
-	}
-
-	return falsy
-}
-
-func ToAny(v any) any {
-	return v
-}
-
-func ToString(value any) string {
-	if value == nil {
-		return ""
-	}
-
-	switch v := value.(type) {
-	case string:
-		return v
-	case []byte:
-		return string(v)
-	case error:
-		return v.Error()
-	case fmt.GoStringer:
-		return v.GoString()
-	case fmt.Stringer:
-		return v.String()
-	}
-
-	switch rv := reflect.ValueOf(value); rv.Kind() {
-	case reflect.Pointer, reflect.Interface:
-		if rv.IsNil() {
-			return ""
-		}
-
-		return ToString(rv.Elem().Interface())
-	}
-
-	return fmt.Sprint(value)
-}
-
-func ToList(value any) []any {
-	return toTypedList(value, ToAny)
-}
-
-func ToStringList(value any) []string {
-	return toTypedList(value, ToString)
-}
-
-func ToMap(value any) map[string]any {
-	return toTypedMap(value, ToAny)
-}
-
-func ToStringMap(value any) map[string]string {
-	return toTypedMap(value, ToString)
-}
-
-func toTypedList[T any](value any, fn func(any) T) []T {
-	if value == nil {
-		return make([]T, 0)
-	}
-
-	if v, ok := value.([]T); ok {
-		return slices.Clone(v)
-	}
-
-	rv := reflect.ValueOf(value)
-
-	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
-		return []T{fn(value)}
-	}
-
-	out := make([]T, 0, rv.Len())
-
-	for i := range rv.Len() {
-		if item := rv.Index(i).Interface(); item != nil {
-			out = append(out, fn(item))
-		}
-	}
-
-	return out
-}
-
-func toTypedMap[T any](value any, fn func(any) T) map[string]T {
-	if value == nil {
-		return make(map[string]T)
-	}
-
-	switch rv := reflect.ValueOf(value); rv.Kind() {
-	case reflect.Map:
-		out := make(map[string]T, rv.Len())
-
-		for iter := rv.MapRange(); iter.Next(); {
-			out[ToString(iter.Key().Interface())] = fn(iter.Value().Interface())
-		}
-
-		return out
-	case reflect.Slice, reflect.Array:
-		out := make(map[string]T, rv.Len())
-
-		for i := range rv.Len() {
-			out[ToString(i)] = fn(rv.Index(i).Interface())
-		}
-
-		return out
-	}
-
-	return map[string]T{"0": fn(value)}
 }
 
 func render(t *template.Template, name string, data ...any) (string, error) {

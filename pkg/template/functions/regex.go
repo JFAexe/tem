@@ -3,19 +3,17 @@ package functions
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/JFAexe/tem/pkg/convert"
 )
 
 type Regex struct {
 	cache map[string]*regexp.Regexp
 }
 
-func RegexNamespace() func() any {
-	n := &Regex{
+func NewRegexFuncs() *Regex {
+	return &Regex{
 		cache: make(map[string]*regexp.Regexp),
-	}
-
-	return func() any {
-		return n
 	}
 }
 
@@ -41,13 +39,13 @@ func (f *Regex) Find(regex string, str string) (string, error) {
 	return exp.FindString(str), nil
 }
 
-func (f *Regex) FindAll(regex string, n int, str string) ([]string, error) {
+func (f *Regex) FindAll(regex string, n int64, str string) ([]string, error) {
 	exp, err := f.cached(regex)
 	if err != nil {
 		return make([]string, 0), err
 	}
 
-	return exp.FindAllString(str, n), nil
+	return exp.FindAllString(str, convert.SafeInt(n)), nil
 }
 
 func (f *Regex) Replace(regex string, rpl string, str string) (string, error) {
@@ -59,13 +57,13 @@ func (f *Regex) Replace(regex string, rpl string, str string) (string, error) {
 	return exp.ReplaceAllString(str, rpl), nil
 }
 
-func (f *Regex) Split(regex string, n int, str string) ([]string, error) {
+func (f *Regex) Split(regex string, n int64, str string) ([]string, error) {
 	exp, err := f.cached(regex)
 	if err != nil {
 		return make([]string, 0), err
 	}
 
-	return exp.Split(str, n), nil
+	return exp.Split(str, convert.SafeInt(n)), nil
 }
 
 func (f *Regex) cached(regex string) (*regexp.Regexp, error) {

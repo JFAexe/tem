@@ -3,20 +3,14 @@ package functions
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/JFAexe/tem/pkg/convert"
 )
 
 type File struct{}
 
-func FileNamespace() func(...any) (any, error) {
-	n := new(File)
-
-	return func(args ...any) (any, error) {
-		if len(args) > 0 {
-			return n.Content(ToStringList(args)[0])
-		}
-
-		return n, nil
-	}
+func FileVarargInit(n *File, args []any) (any, error) {
+	return n.Content(convert.ToStringList(args)[0])
 }
 
 func (*File) Content(path string) (string, error) {
@@ -34,9 +28,7 @@ func (*File) Content(path string) (string, error) {
 }
 
 func (*File) Exists(path string) bool {
-	if stat, err := os.Stat(path); err == nil {
-		return stat.Mode().IsRegular()
-	}
+	stat, err := os.Stat(filepath.Clean(path))
 
-	return false
+	return err == nil && stat.Mode().IsRegular()
 }

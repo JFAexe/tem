@@ -3,17 +3,11 @@ package functions
 import (
 	"fmt"
 	"strings"
+
+	"github.com/JFAexe/tem/pkg/convert"
 )
 
 type String struct{}
-
-func StringNamespace() func() any {
-	n := new(String)
-
-	return func() any {
-		return n
-	}
-}
 
 func (*String) Quote(s string) string {
 	return fmt.Sprintf("%q", s)
@@ -83,8 +77,8 @@ func (*String) Replace(old, new, src string) string {
 	return strings.ReplaceAll(src, old, new)
 }
 
-func (*String) Repeat(count int, s string) string {
-	return strings.Repeat(s, count)
+func (*String) Repeat(count int64, s string) string {
+	return strings.Repeat(s, convert.SafeInt(count))
 }
 
 func (*String) Split(sep string, s string) []string {
@@ -92,11 +86,14 @@ func (*String) Split(sep string, s string) []string {
 }
 
 func (*String) Join(sep string, values ...any) string {
-	return strings.Join(ToStringList(values), sep)
+	return strings.Join(convert.ToStringList(values), sep)
 }
 
-func (*String) Truncate(size int, str string) string {
-	runes := []rune(str)
+func (*String) Truncate(length int64, str string) string {
+	var (
+		size  = convert.SafeInt(length)
+		runes = []rune(str)
+	)
 
 	if size < 0 && len(runes)+size > 0 {
 		return string(runes[len(runes)+size:])
@@ -109,7 +106,7 @@ func (*String) Truncate(size int, str string) string {
 	return str
 }
 
-func (*String) Indent(level int, str string) string {
+func (*String) Indent(level int64, str string) string {
 	if level <= 0 || str == "" {
 		return str
 	}
@@ -117,7 +114,7 @@ func (*String) Indent(level int, str string) string {
 	var (
 		builder strings.Builder
 
-		prefix = strings.Repeat(" ", level)
+		prefix = strings.Repeat(" ", convert.SafeInt(level))
 	)
 
 	for i, s := range strings.Split(str, "\n") {

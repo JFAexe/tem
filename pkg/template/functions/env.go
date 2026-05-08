@@ -1,19 +1,14 @@
 package functions
 
-import "github.com/JFAexe/tem/pkg/env"
+import (
+	"github.com/JFAexe/tem/pkg/convert"
+	"github.com/JFAexe/tem/pkg/env"
+)
 
 type Env struct{}
 
-func EnvNamespace() func(...any) any {
-	n := new(Env)
-
-	return func(args ...any) any {
-		if len(args) > 0 {
-			return n.Get(ToStringList(args)[0])
-		}
-
-		return n
-	}
+func EnvVarargInit(n *Env, args []any) (any, error) {
+	return n.Get(convert.ToStringList(args)[0]), nil
 }
 
 func (*Env) Escape(value string) string {
@@ -37,11 +32,11 @@ func (*Env) Map() (env.Map, error) {
 }
 
 func (*Env) Set(key string, value any) error {
-	return env.Set(key, ToString(value))
+	return env.Set(key, convert.ToString(value))
 }
 
 func (*Env) BatchSet(m any) error {
-	return env.BatchSet(ToStringMap(m))
+	return env.BatchSet(convert.ToStringMap(m))
 }
 
 func (*Env) Unset(key string) error {
@@ -49,7 +44,7 @@ func (*Env) Unset(key string) error {
 }
 
 func (*Env) BatchUnset(keys ...any) error {
-	return env.BatchUnset(ToStringList(keys))
+	return env.BatchUnset(convert.ToStringList(keys))
 }
 
 func (*Env) IsSet(key string) bool {

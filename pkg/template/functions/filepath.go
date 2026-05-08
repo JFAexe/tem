@@ -22,14 +22,6 @@ type WalkInfo struct {
 
 type Filepath struct{}
 
-func FilepathNamespace() func() any {
-	n := new(Filepath)
-
-	return func() any {
-		return n
-	}
-}
-
 func (*Filepath) Clean(s string) string {
 	return filepath.Clean(s)
 }
@@ -80,7 +72,7 @@ func (*Filepath) FromSlash(s string) string {
 	return filepath.FromSlash(s)
 }
 
-func (*Filepath) VolumeName(s string) string {
+func (*Filepath) Volume(s string) string {
 	return filepath.VolumeName(s)
 }
 
@@ -134,4 +126,28 @@ func (*Filepath) Walk(root string, args ...bool) ([]WalkInfo, error) {
 	}
 
 	return entries, nil
+}
+
+func (*Filepath) Exists(path string) bool {
+	_, err := os.Stat(filepath.Clean(path))
+
+	return err == nil
+}
+
+func (*Filepath) IsDir(path string) bool {
+	stat, err := os.Stat(filepath.Clean(path))
+
+	return err == nil && stat.Mode().IsDir()
+}
+
+func (*Filepath) IsFile(path string) bool {
+	stat, err := os.Stat(filepath.Clean(path))
+
+	return err == nil && stat.Mode().IsRegular()
+}
+
+func (*Filepath) IsSymlink(path string) bool {
+	stat, err := os.Lstat(filepath.Clean(path))
+
+	return err == nil && stat.Mode()&fs.ModeSymlink != 0
 }

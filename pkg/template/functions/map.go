@@ -4,20 +4,14 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"github.com/JFAexe/tem/pkg/convert"
 )
 
 type Map struct{}
 
-func MapNamespace() func(...any) (any, error) {
-	n := new(Map)
-
-	return func(args ...any) (any, error) {
-		if len(args) > 0 {
-			return n.New(args...)
-		}
-
-		return n, nil
-	}
+func MapVarargInit(n *Map, args []any) (any, error) {
+	return n.New(args...)
 }
 
 func (*Map) New(kv ...any) (map[string]any, error) {
@@ -28,7 +22,7 @@ func (*Map) New(kv ...any) (map[string]any, error) {
 	}
 
 	for i := 0; i < len(kv); i += 2 {
-		out[ToString(kv[i])] = kv[i+1]
+		out[convert.ToString(kv[i])] = kv[i+1]
 	}
 
 	return out, nil

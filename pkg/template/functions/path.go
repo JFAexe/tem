@@ -4,14 +4,6 @@ import "path"
 
 type Path struct{}
 
-func PathNamespace() func() any {
-	n := new(Path)
-
-	return func() any {
-		return n
-	}
-}
-
 func (*Path) Clean(s string) string {
 	return path.Clean(s)
 }

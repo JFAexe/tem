@@ -19,6 +19,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/goccy/go-yaml"
 
+	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/JFAexe/tem/pkg/env"
 )
 
@@ -40,16 +41,8 @@ var hashers = map[string]hash.Hash{
 
 type Data struct{}
 
-func DataNamespace() func() any {
-	n := new(Data)
-
-	return func() any {
-		return n
-	}
-}
-
 func (*Data) Xor(key string, value any) string {
-	data := []byte(ToString(value))
+	data := []byte(convert.ToString(value))
 
 	for i := range data {
 		data[i] ^= key[i%len(key)]
@@ -66,7 +59,7 @@ func (*Data) Hash(kind string, value any) (string, error) {
 		return "", fmt.Errorf("invalid hash function %#q, supported: %s", kind, strings.Join(slices.Sorted(maps.Keys(hashers)), ", "))
 	}
 
-	return hex.EncodeToString(hasher.Sum([]byte(ToString(value)))), nil
+	return hex.EncodeToString(hasher.Sum([]byte(convert.ToString(value)))), nil
 }
 
 func (*Data) FromHex(data string) (string, error) {
@@ -79,7 +72,7 @@ func (*Data) FromHex(data string) (string, error) {
 }
 
 func (*Data) ToHex(value any) string {
-	return hex.EncodeToString([]byte(ToString(value)))
+	return hex.EncodeToString([]byte(convert.ToString(value)))
 }
 
 func (*Data) FromBase64(data string) (string, error) {
@@ -94,11 +87,11 @@ func (*Data) FromBase64(data string) (string, error) {
 }
 
 func (*Data) ToBase64(value any) string {
-	return base64.StdEncoding.EncodeToString([]byte(ToString(value)))
+	return base64.StdEncoding.EncodeToString([]byte(convert.ToString(value)))
 }
 
 func (*Data) ToBase64URL(value any) string {
-	return base64.URLEncoding.EncodeToString([]byte(ToString(value)))
+	return base64.URLEncoding.EncodeToString([]byte(convert.ToString(value)))
 }
 
 func (*Data) FromJSON(data string) (any, error) {
