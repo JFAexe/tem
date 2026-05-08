@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -34,11 +36,12 @@ func init() {
 		xflag.WithUsageVersion(fmt.Sprintf("%s (%s) built using %s on %s", version, commit, runtime.Version(), date)),
 		xflag.WithUsageDescription("tem - tiny go template cli renderer"),
 		xflag.WithUsageNotes(
-			"Multiple list values passed as separate flags (e.g. '-e KEY1=\"value1\" -e KEY2=\"value2\"')",
-			"Glob patterns support '**', '{groups,...}' and '[classes]'",
+			"Writes raw template to output and error to stderr on failure",
 			"Template definitions are parsed after root template",
+			"Multiple list values passed as separate flags (e.g. '-e KEY1=\"value1\" -e KEY2=\"value2\"')",
 			"Passed envs and read .envs take precedence over process environment",
-			"Env values are expanded on lookup, supported substitutions: ':-', '-', ':=', '=', ':+', '+', ':?', '?'",
+			"Env values are expanded on lookup, supported substitutions: `:-`, `-`, `:=`, `=`, `:+`, `+`, `:?`, `?`",
+			"Glob patterns support `**`, `{groups,...}` and `[classes]`",
 		),
 	)
 }
@@ -153,8 +156,18 @@ func render(args []string) error {
 		return fmt.Errorf("failed to parse template definitions: %w", err)
 	}
 
-	if err := tpl.Execute(output, make(map[string]any)); err != nil {
+	var buffer bytes.Buffer
+
+	if err := tpl.Execute(&buffer, make(map[string]any)); err != nil {
+		if _, e := output.Write(raw); e != nil {
+			err = errors.Join(err, fmt.Errorf("failed to write raw template to output: %w", e))
+		}
+
 		return fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	if _, err = buffer.WriteTo(output); err != nil {
+		return fmt.Errorf("failed to write rendered template to output: %w", err)
 	}
 
 	return nil
