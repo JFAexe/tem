@@ -4,8 +4,10 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"math/big"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -33,17 +35,26 @@ func (f *Random) Pick(values ...any) (any, error) {
 	return f.PickFrom(values)
 }
 
-func (*Random) PickFrom(values []any) (any, error) {
-	if len(values) == 0 {
+func (*Random) PickFrom(value any) (any, error) {
+	if reflect.ValueOf(value).Kind() == reflect.Map {
+		value = slices.Sorted(maps.Keys(convert.ToAnyMap(value)))
+	}
+
+	var (
+		values = convert.ToAnyList(value)
+		count  = int64(len(values))
+	)
+
+	if count == 0 {
 		return nil, ErrEmptyList
 	}
 
-	idx, err := randInt64(int64(len(values)), false)
+	idx, err := randInt64(count, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return values[convert.Clamp(idx, 0, math.MaxInt)], nil
+	return values[convert.Clamp(idx, 0, count)], nil
 }
 
 func (*Random) Int(args ...int64) (int64, error) {
