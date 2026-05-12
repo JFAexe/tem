@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -67,7 +68,7 @@ func SetUsage(set *flag.FlagSet, options ...UsageOption) {
 		}
 
 		if u.executable != "" {
-			fmt.Fprintf(b, "\n Usage: %s [flags]", u.executable)
+			fmt.Fprintf(b, "\n Usage: %s [flags]", filepath.Clean(u.executable))
 
 			if u.exec {
 				fmt.Fprintf(b, " -- <command> [arguments]")
