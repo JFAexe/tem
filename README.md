@@ -27,7 +27,7 @@ go install -trimpath -ldflags "-s -w" github.com/JFAexe/tem/cmd/tem@latest
 ### Prebuilt binaries for Linux/Darwin via shell
 ```shell
 (
-  TEM_VERSION="0.7.0"
+  TEM_VERSION="0.7.1"
   TEM_SYSTEM="linux"
   TEM_ARCH="amd64"
   TEM_ARCHIVE="$HOME/Downloads/tem_${TEM_VERSION}.tar.gz"
@@ -40,7 +40,7 @@ go install -trimpath -ldflags "-s -w" github.com/JFAexe/tem/cmd/tem@latest
 
 ### Prebuilt binaries for Windows via powershell
 ```powershell
-$TEM_VERSION     = "0.7.0"
+$TEM_VERSION     = "0.7.1"
 $TEM_SYSTEM      = "windows"
 $TEM_ARCH        = "amd64"
 $TEM_ARCHIVE     = "$env:USERPROFILE/Downloads/tem_${TEM_VERSION}.zip"
