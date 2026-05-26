@@ -33,7 +33,7 @@ go install -trimpath -ldflags "-s -w" github.com/JFAexe/tem/cmd/tem@latest
   TEM_ARCHIVE="$HOME/Downloads/tem_${TEM_VERSION}.tar.gz"
   TEM_PATH="$HOME/.local/bin/"
 
-  wget "https://github.com/JFAexe/tem/releases/download/v${TEM_VERSION}/tem_${TEM_VERSION}_${TEM_SYSTEM}_${TEM_ARCH}.tar.gz" -O "$TEM_ARCHIVE"
+  curl -L "https://github.com/JFAexe/tem/releases/download/v${TEM_VERSION}/tem_${TEM_VERSION}_${TEM_SYSTEM}_${TEM_ARCH}.tar.gz" -o "$TEM_ARCHIVE"
   tar -xzf "$TEM_ARCHIVE" -C "$TEM_PATH" "tem"
 )
 ```
