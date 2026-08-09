@@ -2,18 +2,17 @@
 [![GitHub Release](https://img.shields.io/github/v/release/JFAexe/tem?style=for-the-badge&color=%2300ADD8)](https://github.com/JFAexe/tem/releases/latest)
 [![License](https://img.shields.io/github/license/JFAexe/tem?style=for-the-badge&color=%2300ADD8)](LICENSE)
 
+> Just because you can, doesn't mean you should.
+
 ```shell
 echo '
-[[- $files := list.New -]]
-[[- range $f := filepath.Walk "**/functions/[a-z]*.go" true | list.Reverse -]]
-  [[- $files = $files | list.Concat ( map
-    "name" ( $f.Name | string.TrimSuffix ( $f.Name | filepath.Ext ) )
-    "path" $f.Path
-  ) -]]
-[[- end -]]
+{{- $files := list.New -}}
+{{- range $f := filepath.Walk `**/[a-z]*.go` true | list.Reverse -}}
+  {{- $files = $files | list.Concat ( map `path` $f.Path `data` ( $f.Path | file | to.Bytes ) ) -}}
+{{- end -}}
 ---
-[[ map "files" $files | data.ToYAML -]]
-' | tem -l '[[' -r ']]'
+{{ $files | data.ToYAML -}}
+' | tem
 ```
 
 ## Installation
@@ -27,28 +26,30 @@ go install -trimpath -ldflags "-s -w" github.com/JFAexe/tem/cmd/tem@latest
 ### Prebuilt binaries for Linux/Darwin via shell
 ```shell
 (
-  TEM_VERSION="0.7.1"
-  TEM_SYSTEM="linux"
-  TEM_ARCH="amd64"
-  TEM_ARCHIVE="$HOME/Downloads/tem_${TEM_VERSION}.tar.gz"
+  TEM_SYSTEM="darwin" # "linux"
+  TEM_ARCH="amd64" # "amd64"
   TEM_PATH="$HOME/.local/bin/"
 
-  curl -L "https://github.com/JFAexe/tem/releases/download/v${TEM_VERSION}/tem_${TEM_VERSION}_${TEM_SYSTEM}_${TEM_ARCH}.tar.gz" -o "$TEM_ARCHIVE"
-  tar -xzf "$TEM_ARCHIVE" -C "$TEM_PATH" "tem"
+  TEM_URL=$(curl -sL https://api.github.com/repos/JFAexe/tem/releases/latest | grep -o "https://[^\"]*${TEM_SYSTEM}_${TEM_ARCH}[^\"]*")
+  TEM_ARCHIVE="$HOME/Downloads/${TEM_URL##*/}"
+
+  curl -sL "$TEM_URL" -o "$TEM_ARCHIVE" && tar -xzf "$TEM_ARCHIVE" -C "$TEM_PATH" "tem"
 )
 ```
 
 ### Prebuilt binaries for Windows via powershell
 ```powershell
-$TEM_VERSION     = "0.7.1"
 $TEM_SYSTEM      = "windows"
 $TEM_ARCH        = "amd64"
-$TEM_ARCHIVE     = "$env:USERPROFILE/Downloads/tem_${TEM_VERSION}.zip"
-$TEM_INSTALL_DIR = "$env:LOCALAPPDATA/tem"
+$TEM_INSTALL_DIR = "$env:LOCALAPPDATA\tem"
 
-Invoke-WebRequest -Uri "https://github.com/JFAexe/tem/releases/download/v${TEM_VERSION}/tem_${TEM_VERSION}_${TEM_SYSTEM}_${TEM_ARCH}.zip" -OutFile "$TEM_ARCHIVE"
-New-Item -ItemType Directory -Path "$TEM_INSTALL_DIR" -Force | Out-Null
-Expand-Archive -Path "$TEM_ARCHIVE" -DestinationPath "$TEM_INSTALL_DIR" -Force
+$RELEASE     = Invoke-RestMethod -Uri "https://api.github.com/repos/JFAexe/tem/releases/latest"
+$TEM_URL     = $RELEASE.assets.browser_download_url | Where-Object { $_ -match "${TEM_SYSTEM}_${TEM_ARCH}" }
+$TEM_ARCHIVE = "$env:USERPROFILE\Downloads\$($TEM_URL.Split('/')[-1])"
+
+Invoke-WebRequest -Uri $TEM_URL -OutFile $TEM_ARCHIVE
+New-Item -ItemType Directory -Path $TEM_INSTALL_DIR -Force | Out-Null
+Expand-Archive -Path $TEM_ARCHIVE -DestinationPath $TEM_INSTALL_DIR -Force
 
 $ENV_PATH = [Environment]::GetEnvironmentVariable("Path", "User")
 
