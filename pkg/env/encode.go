@@ -8,7 +8,7 @@ import (
 	"slices"
 )
 
-type EncoderOption = func(d *Encoder)
+type EncoderOption = func(e *Encoder)
 
 func WithEncoderLookup(lookup LookupFunc) EncoderOption {
 	return func(e *Encoder) {
@@ -45,13 +45,13 @@ func NewEncoder(w io.Writer, options ...EncoderOption) *Encoder {
 func (e *Encoder) Encode(v any) error {
 	m, ok := v.(Map)
 	if !ok {
-		return fmt.Errorf("env: encode requires map[string]string, got %T", v)
+		return fmt.Errorf("encode requires map[string]string, got %T", v)
 	}
 
 	for i, key := range slices.Sorted(maps.Keys(m)) {
 		if i > 0 {
 			if _, err := fmt.Fprint(e.w, "\n"); err != nil {
-				return fmt.Errorf("env: encoding error: %w", err)
+				return fmt.Errorf("encoding error: %w", err)
 			}
 		}
 
@@ -62,7 +62,7 @@ func (e *Encoder) Encode(v any) error {
 		}
 
 		if _, err := fmt.Fprintf(e.w, "%s=%q", ToKey(key), val); err != nil {
-			return fmt.Errorf("env: encoding error: %w", err)
+			return fmt.Errorf("encoding error: %w", err)
 		}
 	}
 

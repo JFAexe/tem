@@ -50,9 +50,7 @@ func RawExpand(value string, lookup LookupFunc) string {
 			}
 
 			if j == len(runes) {
-				for k := i; k < len(runes); k++ {
-					out.WriteRune(runes[k])
-				}
+				out.WriteString(string(runes[i:]))
 
 				break
 			}

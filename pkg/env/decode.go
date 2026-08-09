@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	ErrNotKV           = errors.New("not an env key-value")
-	ErrInvalidKVFormat = errors.New("invalid env key-value format")
-	ErrUnmatchedQuote  = errors.New("unmatched quote in value")
+	ErrNotPair        = errors.New("not a key-value pair")
+	ErrBadKey         = errors.New("bad key")
+	ErrUnmatchedQuote = errors.New("unmatched quote in value")
 )
 
 type DecoderOption = func(d *Decoder)
@@ -53,41 +53,48 @@ func NewDecoder(r io.Reader, options ...DecoderOption) *Decoder {
 
 func (d *Decoder) Decode(v any) error {
 	if v == nil {
-		return fmt.Errorf("env: cannot decode into nil")
+		return fmt.Errorf("cannot decode into nil value")
 	}
 
 	rv := reflect.ValueOf(v)
 
 	if rv.Kind() != reflect.Pointer {
-		return fmt.Errorf("env: decode requires a pointer, got %T", v)
+		return fmt.Errorf("decode requires a pointer, got %T", v)
 	}
 
 	if rv.IsNil() {
 		rv.Set(reflect.New(rv.Type().Elem()))
 	}
 
-	out, err := d.decode()
-	if err != nil {
-		return fmt.Errorf("env: failed to decode data: %w", err)
+	var (
+		re = rv.Elem()
+		rk = re.Kind()
+	)
+
+	if rk != reflect.Interface && rk != reflect.Map {
+		return fmt.Errorf("only *map[string]string or *any is supported, got %T", v)
 	}
 
-	switch target := rv.Elem(); target.Kind() {
-	case reflect.Interface:
-		target.Set(reflect.ValueOf(out))
-	case reflect.Map:
-		if target.Type().Key().Kind() != reflect.String || target.Type().Elem().Kind() != reflect.String {
-			return fmt.Errorf("env: only types like map[string]string are supported, got %s", target.Type())
-		}
+	if rk == reflect.Map && (re.Type().Key().Kind() != reflect.String || re.Type().Elem().Kind() != reflect.String) {
+		return fmt.Errorf("only types like map[string]string are supported, got %s", re.Type())
+	}
 
-		if target.IsNil() {
-			target.Set(reflect.MakeMap(target.Type()))
+	out, err := d.decode()
+	if err != nil {
+		return fmt.Errorf("failed to decode data: %w", err)
+	}
+
+	switch rk {
+	case reflect.Interface:
+		re.Set(reflect.ValueOf(out))
+	case reflect.Map:
+		if re.IsNil() {
+			re.Set(reflect.MakeMap(re.Type()))
 		}
 
 		for k, val := range out {
-			target.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(val))
+			re.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(val))
 		}
-	default:
-		return fmt.Errorf("env: only *map[string]string or *any is supported, got %T", v)
 	}
 
 	return nil
@@ -95,10 +102,10 @@ func (d *Decoder) Decode(v any) error {
 
 func (d *Decoder) decode() (Map, error) {
 	var (
-		multiline bool
-		quote     rune
-		key       string
-		buf       []string
+		multiline    bool
+		quote        rune
+		multilineKey string
+		rawValue     strings.Builder
 
 		out     = make(Map)
 		scanner = bufio.NewScanner(d.r)
@@ -126,38 +133,45 @@ func (d *Decoder) decode() (Map, error) {
 		out[key] = val
 	}
 
-	saveMultiline := func(key string, buffer []string) {
-		inner := strings.Join(buffer, "\n")
+	flush := func() {
+		raw := rawValue.String() + string(quote)
 
-		parsed, err := parseQuotedValue(string(quote) + inner + string(quote))
+		parsed, err := ParseValue(raw)
 		if err != nil {
-			parsed = inner
+			parsed = strings.TrimPrefix(raw, string(quote))
 		}
 
-		save(key, parsed)
+		save(multilineKey, parsed)
 	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		if multiline {
-			buf = append(buf, line)
+			trimmed := strings.TrimRight(line, " \t\r")
+			if len(trimmed) == 0 {
+				rawValue.WriteString("\n")
+				rawValue.WriteString(line)
 
-			if line = strings.TrimRight(line, " \t\r"); len(line) == 0 {
 				continue
 			}
 
-			runes := []rune(line)
+			runes := []rune(trimmed)
 
 			if idx := len(runes) - 1; runes[idx] == quote && !isEscaped(runes, idx) {
-				buf[len(buf)-1] = string(runes[:idx])
+				rawValue.WriteString("\n")
+				rawValue.WriteString(string(runes[:idx]))
 
-				saveMultiline(key, buf)
+				flush()
 
 				multiline = false
 				quote = 0
-				key = ""
-				buf = nil
+				multilineKey = ""
+
+				rawValue.Reset()
+			} else {
+				rawValue.WriteString("\n")
+				rawValue.WriteString(line)
 			}
 
 			continue
@@ -172,8 +186,9 @@ func (d *Decoder) decode() (Map, error) {
 			continue
 		}
 
-		if k = ToKey(strings.TrimSpace(k)); k == "" {
-			continue
+		k, err := ParseKey(k)
+		if err != nil {
+			return nil, err
 		}
 
 		if v = strings.TrimSpace(v); v == "" {
@@ -182,27 +197,19 @@ func (d *Decoder) decode() (Map, error) {
 			continue
 		}
 
-		switch runes := []rune(v); runes[0] {
-		case '"', '\'':
-			if parsed, err := parseValue(v); err == nil {
-				save(k, parsed)
-			} else if errors.Is(err, ErrUnmatchedQuote) {
-				multiline = true
-				quote = runes[0]
-				key = k
-				buf = []string{string(runes[1:])}
-			}
-
-			continue
-		}
-
-		if parsed, err := parseValue(v); err == nil {
+		if parsed, err := ParseValue(v); err == nil {
 			save(k, parsed)
+		} else if errors.Is(err, ErrUnmatchedQuote) {
+			multiline = true
+			quote = rune(v[0])
+			multilineKey = k
+
+			rawValue.WriteString(v)
 		}
 	}
 
 	if multiline {
-		saveMultiline(key, buf)
+		flush()
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -220,21 +227,50 @@ func Unmarshal(data []byte, v any, options ...DecoderOption) error {
 	return nil
 }
 
-func isEscaped(r []rune, i int) bool {
-	if i == 0 {
-		return false
+func ParseMap(e Map) (m Map, err error) {
+	m = make(Map, len(e))
+
+	for key, val := range e {
+		if key, err = ParseKey(key); err != nil {
+			return nil, err
+		}
+
+		if val, err = ParseValue(val); err != nil {
+			return nil, err
+		}
+
+		m[key] = val
 	}
 
-	var count int
-
-	for j := i - 1; j >= 0 && r[j] == '\\'; j-- {
-		count++
-	}
-
-	return count%2 == 1
+	return m, nil
 }
 
-func parseValue(s string) (string, error) {
+func ParseLine(line string) (key, val string, err error) {
+	key, val, ok := strings.Cut(line, "=")
+	if !ok {
+		return "", "", ErrNotPair
+	}
+
+	if key, err = ParseKey(key); err != nil {
+		return "", "", err
+	}
+
+	if val, err = ParseValue(val); err != nil {
+		return "", "", err
+	}
+
+	return key, val, nil
+}
+
+func ParseKey(s string) (string, error) {
+	if key := ToKey(s); key != "" {
+		return key, nil
+	}
+
+	return "", ErrBadKey
+}
+
+func ParseValue(s string) (string, error) {
 	if s = strings.TrimSpace(s); s == "" {
 		return s, nil
 	}
@@ -322,4 +358,18 @@ func parseQuotedValue(s string) (string, error) {
 	}
 
 	return "", ErrUnmatchedQuote
+}
+
+func isEscaped(r []rune, i int) bool {
+	if i == 0 {
+		return false
+	}
+
+	var count int
+
+	for j := i - 1; j >= 0 && r[j] == '\\'; j-- {
+		count++
+	}
+
+	return count%2 == 1
 }

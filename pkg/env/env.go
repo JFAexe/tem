@@ -27,7 +27,7 @@ func ToKey(key string) string {
 		}
 
 		return '_'
-	}, key)
+	}, strings.TrimSpace(key))
 }
 
 func Expand(value string) string {
