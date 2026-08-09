@@ -313,6 +313,35 @@ func ToRuneList(value any) []rune {
 	return ToRuneList(ToString(value))
 }
 
+func ToByteList(value any) []byte {
+	if value == nil {
+		return nil
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		return v
+	case string:
+		return []byte(v)
+	case []rune:
+		return []byte(string(v))
+	case fmt.Stringer:
+		return []byte(v.String())
+	case fmt.GoStringer:
+		return []byte(v.GoString())
+	}
+
+	if rv := reflect.ValueOf(value); rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Interface {
+		if rv.IsNil() {
+			return nil
+		}
+
+		return ToByteList(rv.Elem().Interface())
+	}
+
+	return fmt.Append(nil, value)
+}
+
 func ToList[T any, L []T](value any, fn ConvertFunc[T]) L {
 	if value == nil {
 		return make(L, 0)
