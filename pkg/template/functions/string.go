@@ -89,10 +89,10 @@ func (*String) Join(sep string, values ...any) string {
 	return strings.Join(convert.ToStringList(values), sep)
 }
 
-func (*String) Truncate(length int64, str string) string {
+func (*String) Truncate(length int64, s string) string {
 	var (
 		size  = convert.SafeInt(length)
-		runes = []rune(str)
+		runes = []rune(s)
 	)
 
 	if size < 0 && len(runes)+size > 0 {
@@ -103,12 +103,12 @@ func (*String) Truncate(length int64, str string) string {
 		return string(runes[:size])
 	}
 
-	return str
+	return s
 }
 
-func (*String) Indent(level int64, str string) string {
-	if level <= 0 || str == "" {
-		return str
+func (*String) Indent(level int64, s string) string {
+	if level <= 0 || s == "" {
+		return s
 	}
 
 	var (
@@ -117,7 +117,7 @@ func (*String) Indent(level int64, str string) string {
 		prefix = strings.Repeat(" ", convert.SafeInt(level))
 	)
 
-	for i, s := range strings.Split(str, "\n") {
+	for i, s := range strings.Split(s, "\n") {
 		if i > 0 {
 			builder.WriteByte('\n')
 		}
@@ -125,6 +125,35 @@ func (*String) Indent(level int64, str string) string {
 		if strings.TrimSpace(s) != "" {
 			builder.WriteString(prefix)
 			builder.WriteString(s)
+		}
+	}
+
+	return builder.String()
+}
+
+func (*String) Fold(count int64, s string) string {
+	if count < 0 || s == "" {
+		return s
+	}
+
+	var (
+		builder strings.Builder
+
+		runes  = []rune(s)
+		length = int64(len(runes))
+	)
+
+	if length <= count {
+		return s
+	}
+
+	for i := int64(0); i < length; i += count {
+		end := min(i+count, length)
+
+		builder.WriteString(string(runes[i:end]))
+
+		if end < length {
+			builder.WriteByte('\n')
 		}
 	}
 

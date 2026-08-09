@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"bytes"
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -14,6 +15,7 @@ import (
 	"hash/crc32"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -125,7 +127,7 @@ func (*Data) ToJSONPretty(value any) (string, error) {
 func (*Data) FromYAML(data string) (any, error) {
 	var out any
 
-	if err := yaml.Unmarshal([]byte(data), &out); err != nil {
+	if err := yaml.UnmarshalWithOptions([]byte(data), &out, yaml.AllowDuplicateMapKey(), yaml.CustomUnmarshaler(yamlBinaryUnmarshaler)); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
 	}
 
@@ -133,7 +135,7 @@ func (*Data) FromYAML(data string) (any, error) {
 }
 
 func (*Data) ToYAML(value any) (string, error) {
-	out, err := yaml.Marshal(value)
+	out, err := yaml.MarshalWithOptions(value, yaml.UseLiteralStyleIfMultiline(true), yaml.CustomMarshaler(yamlBinaryMarshaler))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal yaml: %w", err)
 	}
@@ -196,4 +198,25 @@ func (*Data) ToDotEnvExpanded(value env.Map) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+func yamlBinaryMarshaler(b []byte) ([]byte, error) {
+	var buf bytes.Buffer
+
+	buf.WriteString("!!binary ")
+	buf.WriteString(strconv.Quote(base64.StdEncoding.EncodeToString(b)))
+
+	return buf.Bytes(), nil
+}
+
+func yamlBinaryUnmarshaler(d *[]byte, r []byte) error {
+	var s string
+
+	if err := yaml.Unmarshal(r, &s); err != nil {
+		return err
+	}
+
+	*d = []byte(s)
+
+	return nil
 }

@@ -2,7 +2,6 @@ package functions
 
 import (
 	"fmt"
-	"regexp"
 	"regexp/syntax"
 	"strings"
 	"unicode"
@@ -10,73 +9,68 @@ import (
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
-var regexUnicodeSet = regexp.MustCompile(`^\[?\\p\{([^}]+)}\]?$`)
+type runeRange struct{ lo, hi rune }
 
 type Rune struct {
-	cacheRange map[string][]rune
-	cacheRegex map[string][]rune
+	rangeCache map[runeRange][]rune
+	regexCache map[string][]rune
 }
 
 func NewRuneFuncs() *Rune {
 	return &Rune{
-		cacheRange: make(map[string][]rune),
-		cacheRegex: make(map[string][]rune),
+		rangeCache: make(map[runeRange][]rune),
+		regexCache: make(map[string][]rune),
 	}
 }
 
 func (f *Rune) RangeSet(lower, upper any) []rune {
-	return f.rangeSet(convert.ToRune(lower), convert.ToRune(upper))
+	var (
+		lr = convert.ToRune(lower)
+		ur = convert.ToRune(upper)
+		lo = min(lr, ur)
+		hi = max(lr, ur)
+
+		key = runeRange{lo, hi}
+	)
+
+	if set, ok := f.rangeCache[key]; ok {
+		return set
+	}
+
+	set := expandRange(lo, hi)
+
+	f.rangeCache[key] = set
+
+	return set
 }
 
-func (f *Rune) RegexSet(regex string) ([]rune, error) {
-	if set, ok := f.cacheRegex[regex]; ok {
+func (f *Rune) RegexSet(pattern string) ([]rune, error) {
+	pattern = strings.TrimSpace(pattern)
+
+	if set, ok := f.regexCache[pattern]; ok {
 		return set, nil
 	}
 
-	if set := f.fromUnicode(regex); set != nil {
-		f.cacheRegex[regex] = set
+	if set := f.fromUnicode(pattern); set != nil {
+		f.regexCache[pattern] = set
 
 		return set, nil
 	}
 
-	set, err := f.syntaxSet(regex)
+	set, err := f.syntaxSet(pattern)
 	if err != nil {
 		return nil, err
 	}
 
-	f.cacheRegex[regex] = set
+	f.regexCache[pattern] = set
 
 	return set, nil
 }
 
-func (f *Rune) rangeSet(lower, upper rune) []rune {
-	var (
-		lo = min(lower, upper)
-		hi = max(lower, upper)
-		id = fmt.Sprintf("%d:%d", lo, hi)
-	)
-
-	if set, ok := f.cacheRange[id]; ok {
-		return set
-	}
-
-	runes := make([]rune, 0, int(hi-lo)+1)
-
-	for r := lo; r <= hi; r++ {
-		if unicode.IsGraphic(r) {
-			runes = append(runes, r)
-		}
-	}
-
-	f.cacheRange[id] = runes
-
-	return runes
-}
-
-func (f *Rune) syntaxSet(regex string) ([]rune, error) {
-	re, err := syntax.Parse(regex, syntax.Perl)
+func (f *Rune) syntaxSet(pattern string) ([]rune, error) {
+	re, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse regex %#q: %w", regex, err)
+		return nil, fmt.Errorf("parse regex %q: %w", pattern, err)
 	}
 
 	re = re.Simplify()
@@ -87,79 +81,85 @@ func (f *Rune) syntaxSet(regex string) ([]rune, error) {
 
 	switch re.Op {
 	case syntax.OpCharClass:
-		var capacity int
+		var runes []rune
 
-		for i := 0; i < len(re.Rune); i += 2 {
-			capacity += int(re.Rune[i+1]-re.Rune[i]) + 1
-		}
-
-		runes := make([]rune, 0, capacity)
-
-		for i := 0; i < len(re.Rune); i += 2 {
-			for r := rune(re.Rune[i]); r <= rune(re.Rune[i+1]); r++ {
-				if unicode.IsGraphic(r) {
-					runes = append(runes, r)
-				}
-			}
+		for i := 0; i+1 < len(re.Rune); i += 2 {
+			runes = append(runes, expandRange(re.Rune[i], re.Rune[i+1])...)
 		}
 
 		return runes, nil
 	case syntax.OpLiteral:
 		if len(re.Rune) != 1 {
-			return nil, fmt.Errorf("multi-character literal not supported")
+			return nil, fmt.Errorf("multi-character literal %q not supported", pattern)
 		}
 
 		return []rune{re.Rune[0]}, nil
 	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
-		return f.rangeSet(0, unicode.MaxRune), nil
+		return f.RangeSet(0, unicode.MaxRune), nil
 	default:
-		return nil, fmt.Errorf("pattern %q is not a simple character set (op: %s)", regex, re.Op)
+		return nil, fmt.Errorf("pattern %q is not a simple character set (op: %s)", pattern, re.Op)
 	}
 }
 
 func (f *Rune) fromUnicode(pattern string) []rune {
-	pattern = strings.TrimSpace(pattern)
+	name := strings.TrimSpace(pattern)
 
-	if matches := regexUnicodeSet.FindStringSubmatch(pattern); matches != nil {
-		pattern = matches[1]
+	if strings.HasPrefix(name, `\p{`) && strings.HasSuffix(name, `}`) {
+		name = name[3 : len(name)-1]
+	} else if strings.HasPrefix(name, `[\p{`) && strings.HasSuffix(name, `}]`) {
+		name = name[4 : len(name)-2]
 	}
 
-	if pattern == "" {
+	if name == "" {
 		return nil
 	}
 
-	if rt, ok := unicode.Scripts[pattern]; ok {
-		return f.fromRangeTable(rt)
+	if rt, ok := unicode.Scripts[name]; ok {
+		return expandTable(rt)
 	}
 
-	if rt, ok := unicode.Categories[pattern]; ok {
-		return f.fromRangeTable(rt)
+	if rt, ok := unicode.Categories[name]; ok {
+		return expandTable(rt)
 	}
 
-	if rt, ok := unicode.Properties[pattern]; ok {
-		return f.fromRangeTable(rt)
+	if rt, ok := unicode.Properties[name]; ok {
+		return expandTable(rt)
 	}
 
 	return nil
 }
 
-func (*Rune) fromRangeTable(rt *unicode.RangeTable) (runes []rune) {
+func expandRange(lo, hi rune) []rune {
+	runes := make([]rune, 0, int(hi-lo)+1)
+
+	for r := lo; r <= hi; r++ {
+		if unicode.IsGraphic(r) {
+			runes = append(runes, r)
+		}
+	}
+
+	return runes
+}
+
+func expandTable(rt *unicode.RangeTable) []rune {
 	if rt == nil {
 		return nil
 	}
 
-	for _, r16 := range rt.R16 {
-		for r := rune(r16.Lo); r <= rune(r16.Hi); r += rune(r16.Stride) {
-			if unicode.IsGraphic(r) {
-				runes = append(runes, r)
+	var runes []rune
+
+	for _, r := range rt.R16 {
+		for c := rune(r.Lo); c <= rune(r.Hi); c += rune(r.Stride) {
+			if unicode.IsGraphic(c) {
+				runes = append(runes, c)
 			}
 		}
 	}
 
-	for _, r32 := range rt.R32 {
-		for r := rune(r32.Lo); r <= rune(r32.Hi); r += rune(r32.Stride) {
-			if unicode.IsGraphic(r) {
-				runes = append(runes, r)
+	for _, r := range rt.R32 {
+		for c := rune(r.Lo); c <= rune(r.Hi); c += rune(r.Stride) {
+			if unicode.IsGraphic(c) {
+				runes = append(runes, c)
 			}
 		}
 	}

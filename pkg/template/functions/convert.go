@@ -64,6 +64,10 @@ func (*Convert) Runes(value any) []rune {
 	return convert.ToRuneList(value)
 }
 
+func (*Convert) Bytes(value any) []byte {
+	return convert.ToByteList(value)
+}
+
 func (*Convert) Map(value any) map[string]any {
 	return convert.ToAnyMap(value)
 }

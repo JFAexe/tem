@@ -91,7 +91,7 @@ func (f *Random) String(length int64, args ...any) (_ string, err error) {
 			return "", err
 		}
 	case 2:
-		set = f.runes.rangeSet(convert.ToRune(args[0]), convert.ToRune(args[1]))
+		set = f.runes.RangeSet(args[0], args[1])
 	default:
 		set = convert.ToRuneList(args[0])
 	}
