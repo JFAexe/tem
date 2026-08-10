@@ -13,11 +13,12 @@ import (
 var ErrEmptyPath = errors.New("can't walk empty path")
 
 type WalkInfo struct {
-	Name     string
-	Path     string
-	FullPath string
-	IsFile   bool
-	IsDir    bool
+	Name    string
+	Path    string
+	RelPath string
+	AbsPath string
+	IsFile  bool
+	IsDir   bool
 }
 
 type Filepath struct{}
@@ -107,18 +108,19 @@ func (*Filepath) Walk(root string, args ...bool) ([]WalkInfo, error) {
 			return nil
 		}
 
-		info := WalkInfo{
-			Name:   d.Name(),
-			Path:   p,
-			IsFile: d.Type().IsRegular(),
-			IsDir:  d.IsDir(),
+		entry := WalkInfo{
+			Name:    d.Name(),
+			Path:    filepath.Join(root, p),
+			RelPath: p,
+			IsFile:  d.Type().IsRegular(),
+			IsDir:   d.IsDir(),
 		}
 
-		if info.FullPath, e = filepath.Abs(info.Path); e != nil {
+		if entry.AbsPath, e = filepath.Abs(entry.Path); e != nil {
 			return e
 		}
 
-		entries = append(entries, info)
+		entries = append(entries, entry)
 
 		return nil
 	}); err != nil {
