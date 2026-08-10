@@ -15,7 +15,7 @@ func Namespace[T any](n T) func() any {
 	}
 }
 
-func VarargNamespace[T any](n T, fn func(T, []any) (any, error)) func(...any) (any, error) {
+func NamespaceVararg[T any](n T, fn func(T, []any) (any, error)) func(...any) (any, error) {
 	return func(args ...any) (any, error) {
 		if len(args) > 0 {
 			return fn(n, args)
@@ -26,7 +26,22 @@ func VarargNamespace[T any](n T, fn func(T, []any) (any, error)) func(...any) (a
 }
 
 func FuncMap(t *template.Template) template.FuncMap {
-	runeFuncs := NewRuneFuncs()
+	var (
+		regexFuncs    = NewRegexFuncs()
+		runeFuncs     = NewRuneFuncs()
+		randomFuncs   = NewRandomFuncs(runeFuncs)
+		envFuncs      = new(Env)
+		fileFuncs     = new(File)
+		filepathFuncs = new(Filepath)
+		pathFuncs     = new(Path)
+		stringFuncs   = new(String)
+		mathFuncs     = new(Math)
+		timeFuncs     = new(Time)
+		dataFuncs     = new(Data)
+		mapFuncs      = new(Map)
+		listFuncs     = new(List)
+		convertFuncs  = new(Convert)
+	)
 
 	return template.FuncMap{
 		"inline":   Inline(t),
@@ -34,20 +49,20 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"ternary":  Ternary,
 		"pwd":      os.Getwd,
 		"hostname": os.Hostname,
-		"env":      VarargNamespace(new(Env), EnvVarargInit),
-		"file":     VarargNamespace(new(File), FileVarargInit),
-		"filepath": Namespace(new(Filepath)),
-		"path":     Namespace(new(Path)),
-		"string":   Namespace(new(String)),
-		"regex":    Namespace(NewRegexFuncs()),
-		"math":     Namespace(new(Math)),
-		"time":     Namespace(new(Time)),
-		"data":     Namespace(new(Data)),
+		"env":      NamespaceVararg(envFuncs, EnvVarargInit),
+		"file":     NamespaceVararg(fileFuncs, FileVarargInit),
+		"filepath": Namespace(filepathFuncs),
+		"path":     Namespace(pathFuncs),
+		"string":   Namespace(stringFuncs),
+		"regex":    Namespace(regexFuncs),
+		"math":     Namespace(mathFuncs),
+		"time":     Namespace(timeFuncs),
+		"data":     Namespace(dataFuncs),
 		"rune":     Namespace(runeFuncs),
-		"random":   Namespace(NewRandomFuncs(runeFuncs)),
-		"map":      VarargNamespace(new(Map), MapVarargInit),
-		"list":     VarargNamespace(new(List), ListVarargInit),
-		"to":       Namespace(new(Convert)),
+		"random":   Namespace(randomFuncs),
+		"map":      NamespaceVararg(mapFuncs, MapVarargInit),
+		"list":     NamespaceVararg(listFuncs, ListVarargInit),
+		"to":       Namespace(convertFuncs),
 	}
 }
 
