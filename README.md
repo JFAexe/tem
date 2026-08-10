@@ -26,26 +26,28 @@ go install -trimpath -ldflags "-s -w" github.com/JFAexe/tem/cmd/tem@latest
 ### Prebuilt binaries for Linux/Darwin via shell
 ```shell
 (
-  TEM_SYSTEM="darwin" # "linux"
-  TEM_ARCH="amd64" # "amd64"
-  TEM_PATH="$HOME/.local/bin/"
+  TEM_SYSTEM="darwin"
+  TEM_ARCH="arm64"
+  TEM_DOWNLOAD_PATH="$HOME/Downloads"
+  TEM_INSTALL_PATH="$HOME/.local/bin/"
 
   TEM_URL=$(curl -sL https://api.github.com/repos/JFAexe/tem/releases/latest | grep -o "https://[^\"]*${TEM_SYSTEM}_${TEM_ARCH}[^\"]*")
-  TEM_ARCHIVE="$HOME/Downloads/${TEM_URL##*/}"
+  TEM_ARCHIVE="$TEM_DOWNLOAD_PATH/${TEM_URL##*/}"
 
-  curl -sL "$TEM_URL" -o "$TEM_ARCHIVE" && tar -xzf "$TEM_ARCHIVE" -C "$TEM_PATH" "tem"
+  curl -sL "$TEM_URL" -o "$TEM_ARCHIVE" && tar -xzf "$TEM_ARCHIVE" -C "$TEM_INSTALL_PATH" "tem"
 )
 ```
 
 ### Prebuilt binaries for Windows via powershell
 ```powershell
-$TEM_SYSTEM      = "windows"
-$TEM_ARCH        = "amd64"
-$TEM_INSTALL_DIR = "$env:LOCALAPPDATA\tem"
+$TEM_SYSTEM        = "windows"
+$TEM_ARCH          = "amd64"
+$TEM_DOWNLOAD_PATH = "$env:USERPROFILE\Downloads"
+$TEM_INSTALL_PATH  = "$env:LOCALAPPDATA\tem"
 
 $RELEASE     = Invoke-RestMethod -Uri "https://api.github.com/repos/JFAexe/tem/releases/latest"
 $TEM_URL     = $RELEASE.assets.browser_download_url | Where-Object { $_ -match "${TEM_SYSTEM}_${TEM_ARCH}" }
-$TEM_ARCHIVE = "$env:USERPROFILE\Downloads\$($TEM_URL.Split('/')[-1])"
+$TEM_ARCHIVE = "$TEM_DOWNLOAD_PATH\$($TEM_URL.Split('/')[-1])"
 
 Invoke-WebRequest -Uri $TEM_URL -OutFile $TEM_ARCHIVE
 New-Item -ItemType Directory -Path $TEM_INSTALL_DIR -Force | Out-Null
