@@ -88,7 +88,7 @@ var app = &cli.Command{
 		&cli.StringSliceFlag{
 			Name:    "env-file",
 			Aliases: []string{"f"},
-			Usage:   "list of .env file paths\vonly real path are allowed\r",
+			Usage:   "list of .env file paths\vonly real paths are allowed\r",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -107,7 +107,7 @@ var app = &cli.Command{
 		"name": os.Args[0],
 		"exec": runtime.GOOS != "windows",
 		"notes": []string{
-			"The tool does not provide access to shell, or http requests",
+			"Does not provide access to shell, or http requests",
 			"Writes raw template to output and error to stderr on failure",
 			"Template definitions are parsed after root template",
 			"Passed envs and read .envs take precedence over process environment",
