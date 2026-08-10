@@ -48,11 +48,11 @@ func (e *Encoder) Encode(v any) error {
 		return fmt.Errorf("encode requires map[string]string, got %T", v)
 	}
 
+	var buf bytes.Buffer
+
 	for i, key := range slices.Sorted(maps.Keys(m)) {
 		if i > 0 {
-			if _, err := fmt.Fprint(e.w, "\n"); err != nil {
-				return fmt.Errorf("encoding error: %w", err)
-			}
+			fmt.Fprint(&buf, "\n")
 		}
 
 		val := m[key]
@@ -61,9 +61,11 @@ func (e *Encoder) Encode(v any) error {
 			val = RawExpand(val, e.lookup)
 		}
 
-		if _, err := fmt.Fprintf(e.w, "%s=%q", ToKey(key), val); err != nil {
-			return fmt.Errorf("encoding error: %w", err)
-		}
+		fmt.Fprintf(&buf, "%s=%q", ToKey(key), val)
+	}
+
+	if _, err := buf.WriteTo(e.w); err != nil {
+		return fmt.Errorf("encoding error: %w", err)
 	}
 
 	return nil
