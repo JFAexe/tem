@@ -9,15 +9,17 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 var (
-	ErrNotPair        = errors.New("not a key-value pair")
-	ErrBadKey         = errors.New("bad key")
-	ErrUnmatchedQuote = errors.New("unmatched quote in value")
+	ErrNotPair         = errors.New("not a key-value pair")
+	ErrBadKey          = errors.New("bad key")
+	ErrUnmatchedQuote  = errors.New("unmatched quote in value")
+	ErrInvalidEncoding = errors.New("invalid UTF-8 string")
 )
 
-type DecoderOption = func(d *Decoder)
+type DecoderOption func(d *Decoder)
 
 func WithDecoderLookup(lookup LookupFunc) DecoderOption {
 	return func(d *Decoder) {
@@ -134,7 +136,9 @@ func (d *Decoder) decode() (Map, error) {
 	}
 
 	flush := func() {
-		raw := rawValue.String() + string(quote)
+		rawValue.WriteRune(quote)
+
+		raw := rawValue.String()
 
 		parsed, err := ParseValue(raw)
 		if err != nil {
@@ -149,28 +153,29 @@ func (d *Decoder) decode() (Map, error) {
 
 		if multiline {
 			trimmed := strings.TrimRight(line, " \t\r")
+
 			if len(trimmed) == 0 {
-				rawValue.WriteString("\n")
+				rawValue.WriteByte('\n')
 				rawValue.WriteString(line)
 
 				continue
 			}
 
-			runes := []rune(trimmed)
+			last, size := utf8.DecodeLastRuneInString(trimmed)
 
-			if idx := len(runes) - 1; runes[idx] == quote && !isEscaped(runes, idx) {
-				rawValue.WriteString("\n")
-				rawValue.WriteString(string(runes[:idx]))
+			if last == quote && !isEscaped(trimmed, len(trimmed)-size) {
+				rawValue.WriteByte('\n')
+				rawValue.WriteString(trimmed[:len(trimmed)-size])
 
 				flush()
 
 				multiline = false
-				quote = 0
 				multilineKey = ""
+				quote = 0
 
 				rawValue.Reset()
 			} else {
-				rawValue.WriteString("\n")
+				rawValue.WriteByte('\n')
 				rawValue.WriteString(line)
 			}
 
@@ -201,8 +206,8 @@ func (d *Decoder) decode() (Map, error) {
 			save(k, parsed)
 		} else if errors.Is(err, ErrUnmatchedQuote) {
 			multiline = true
-			quote = rune(v[0])
 			multilineKey = k
+			quote = rune(v[0])
 
 			rawValue.WriteString(v)
 		}
@@ -275,101 +280,129 @@ func ParseValue(s string) (string, error) {
 		return s, nil
 	}
 
-	runes := []rune(s)
-
-	if r := runes[0]; r == '"' || r == '\'' {
+	if s[0] == '"' || s[0] == '\'' {
 		return parseQuotedValue(s)
 	}
 
 	var (
-		b       strings.Builder
-		escaped bool
+		escaped, spaceed bool
+		builder          strings.Builder
+		index            int
 	)
 
-	for i, r := range runes {
-		if escaped {
-			escaped = false
+	builder.Grow(len(s))
 
-			b.WriteRune(r)
+	for _, r := range s {
+		if escaped {
+			builder.WriteRune(r)
+
+			escaped = false
+			spaceed = unicode.IsSpace(r)
+
+			index++
 
 			continue
 		}
 
 		if r == '\\' {
 			escaped = true
+			spaceed = false
+
+			index++
 
 			continue
 		}
 
-		if r == '#' && (i == 0 || unicode.IsSpace(runes[i-1])) {
+		if r == '#' && (index == 0 || spaceed) {
 			break
 		}
 
-		b.WriteRune(r)
+		builder.WriteRune(r)
+
+		spaceed = unicode.IsSpace(r)
+
+		index++
 	}
 
-	return strings.TrimSpace(b.String()), nil
+	return strings.TrimSpace(builder.String()), nil
 }
 
 func parseQuotedValue(s string) (string, error) {
+	quote, size := utf8.DecodeRuneInString(s)
+	if quote == utf8.RuneError {
+		return "", ErrInvalidEncoding
+	}
+
 	var (
-		b       strings.Builder
+		builder strings.Builder
 		escaped bool
 
-		runes = []rune(s)
-		quote = runes[0]
-		tail  = runes[1:]
+		pos = size
 	)
 
-	for i, r := range tail {
-		if escaped {
-			escaped = false
+	builder.Grow(len(s) - size)
 
-			b.WriteRune(r)
+	for pos < len(s) {
+		r, w := utf8.DecodeRuneInString(s[pos:])
+
+		if escaped {
+			builder.WriteRune(r)
+
+			escaped = false
+			pos += w
 
 			continue
 		}
 
 		if r == '\\' {
 			escaped = true
+			pos += w
 
 			continue
 		}
 
-		if r != quote {
-			b.WriteRune(r)
+		if r == quote {
+			if remaining := s[pos+w:]; remaining != "" {
+				if before, _, ok := strings.Cut(remaining, "#"); ok && !isSpace(before) {
+					return "", fmt.Errorf("unexpected characters after closing quote: %#q", remaining)
+				}
 
-			continue
-		}
-
-		remaining := string(tail[i+1:])
-
-		if idx := strings.IndexByte(remaining, '#'); idx >= 0 {
-			if pre := remaining[:idx]; strings.TrimSpace(pre) == "" {
-				remaining = ""
+				if !isSpace(remaining) {
+					return "", fmt.Errorf("unexpected characters after closing quote: %#q", remaining)
+				}
 			}
+
+			return builder.String(), nil
 		}
 
-		if strings.TrimSpace(remaining) != "" {
-			return "", fmt.Errorf("unexpected characters after closing quote: %#q", remaining)
-		}
+		builder.WriteRune(r)
 
-		return b.String(), nil
+		pos += w
 	}
 
 	return "", ErrUnmatchedQuote
 }
 
-func isEscaped(r []rune, i int) bool {
-	if i == 0 {
+func isEscaped(s string, pos int) bool {
+	if pos <= 0 {
 		return false
 	}
 
 	var count int
 
-	for j := i - 1; j >= 0 && r[j] == '\\'; j-- {
+	for i := pos - 1; i >= 0 && s[i] == '\\'; i-- {
 		count++
 	}
 
 	return count%2 == 1
+}
+
+func isSpace(value string) bool {
+	for _, r := range value {
+		if !unicode.IsSpace(r) {
+			return false
+		}
+	}
+
+	return true
 }

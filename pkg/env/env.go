@@ -7,9 +7,10 @@ import (
 )
 
 type (
-	Map        = map[string]string
-	LookupFunc = func(value string) (string, bool)
-	ExpandFunc = func(value string) string
+	Map = map[string]string
+
+	LookupFunc func(value string) (string, bool)
+	ExpandFunc func(value string) string
 )
 
 func Escape(value string) string {
@@ -106,18 +107,18 @@ func Get(key string) string {
 	return value
 }
 
-func RawOr(key, defaultValue string) string {
+func RawOr(key, def string) string {
 	if value, ok := RawLookup(key); ok && value != "" {
 		return value
 	}
 
-	return defaultValue
+	return def
 }
 
-func Or(key, defaultValue string) string {
+func Or(key, def string) string {
 	if value, ok := Lookup(key); ok && value != "" {
 		return value
 	}
 
-	return defaultValue
+	return def
 }

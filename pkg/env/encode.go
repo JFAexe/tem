@@ -8,7 +8,7 @@ import (
 	"slices"
 )
 
-type EncoderOption = func(e *Encoder)
+type EncoderOption func(e *Encoder)
 
 func WithEncoderLookup(lookup LookupFunc) EncoderOption {
 	return func(e *Encoder) {
