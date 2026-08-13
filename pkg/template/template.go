@@ -12,16 +12,16 @@ import (
 	"github.com/JFAexe/tem/pkg/template/functions"
 )
 
-type Option = func(t *Template)
+type Option func(t *Template)
 
 func WithDelims(left, right string) Option {
 	return func(t *Template) {
 		if left = strings.TrimSpace(left); left == "" {
-			left = "{{"
+			left = "[["
 		}
 
 		if right = strings.TrimSpace(right); right == "" {
-			left = "}}"
+			left = "]]"
 		}
 
 		t.Delims(left, right)

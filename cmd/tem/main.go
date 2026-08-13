@@ -61,7 +61,7 @@ var app = &cli.Command{
 			Name:    "delim-left",
 			Aliases: []string{"l"},
 			Sources: cli.EnvVars("TEM_DELIM_LEFT"),
-			Value:   "{{",
+			Value:   "[[",
 			Usage:   "left template delimiter\vresets to default if set to an empty string\r",
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -71,7 +71,7 @@ var app = &cli.Command{
 			Name:    "delim-right",
 			Aliases: []string{"r"},
 			Sources: cli.EnvVars("TEM_DELIM_RIGHT"),
-			Value:   "}}",
+			Value:   "]]",
 			Usage:   "right template delimiter\vresets to default if set to an empty string\r",
 			Config: cli.StringConfig{
 				TrimSpace: true,

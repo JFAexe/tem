@@ -6,12 +6,12 @@
 
 ```shell
 echo '
-{{- $files := list.New -}}
-{{- range $f := filepath.Walk `**/[a-z]*.go` true | list.Reverse -}}
-  {{- $files = $files | list.Concat ( map `path` $f.Path `data` ( $f.Path | file | to.Bytes ) ) -}}
-{{- end -}}
+[[- $files := list.New -]]
+[[- range $f := filepath.Walk `**/[a-z]*.go` true -]]
+  [[- $files = $files | list.Concat ( map `path` $f.Path `data` ( $f.Path | file | to.Bytes ) ) -]]
+[[- end -]]
 ---
-{{ $files | data.ToYAML -}}
+[[ $files | data.ToYAML -]]
 ' | tem
 ```
 
