@@ -11,59 +11,59 @@ type Regex struct {
 	cache map[string]*regexp.Regexp
 }
 
-func NewRegexFuncs() *Regex {
+func NewRegex() *Regex {
 	return &Regex{
 		cache: make(map[string]*regexp.Regexp),
 	}
 }
 
-func (*Regex) Escape(str string) string {
-	return regexp.QuoteMeta(str)
+func (*Regex) Escape(str any) string {
+	return regexp.QuoteMeta(convert.ToString(str))
 }
 
-func (f *Regex) Match(regex string, str string) (bool, error) {
-	exp, err := f.cached(regex)
+func (f *Regex) Match(regex, str any) (bool, error) {
+	exp, err := f.cached(convert.ToString(regex))
 	if err != nil {
 		return false, err
 	}
 
-	return exp.MatchString(str), nil
+	return exp.MatchString(convert.ToString(str)), nil
 }
 
-func (f *Regex) Find(regex string, str string) (string, error) {
-	exp, err := f.cached(regex)
+func (f *Regex) Find(regex, str any) (string, error) {
+	exp, err := f.cached(convert.ToString(regex))
 	if err != nil {
 		return "", err
 	}
 
-	return exp.FindString(str), nil
+	return exp.FindString(convert.ToString(str)), nil
 }
 
-func (f *Regex) FindAll(regex string, n int64, str string) ([]string, error) {
-	exp, err := f.cached(regex)
+func (f *Regex) FindAll(regex, n, str any) ([]string, error) {
+	exp, err := f.cached(convert.ToString(regex))
 	if err != nil {
 		return make([]string, 0), err
 	}
 
-	return exp.FindAllString(str, convert.SafeInt(n)), nil
+	return exp.FindAllString(convert.ToString(str), convert.ToInt(n)), nil
 }
 
-func (f *Regex) Replace(regex string, rpl string, str string) (string, error) {
-	exp, err := f.cached(regex)
+func (f *Regex) Replace(regex, rpl, str any) (string, error) {
+	exp, err := f.cached(convert.ToString(regex))
 	if err != nil {
 		return "", err
 	}
 
-	return exp.ReplaceAllString(str, rpl), nil
+	return exp.ReplaceAllString(convert.ToString(str), convert.ToString(rpl)), nil
 }
 
-func (f *Regex) Split(regex string, n int64, str string) ([]string, error) {
-	exp, err := f.cached(regex)
+func (f *Regex) Split(regex, n, str any) ([]string, error) {
+	exp, err := f.cached(convert.ToString(regex))
 	if err != nil {
 		return make([]string, 0), err
 	}
 
-	return exp.Split(str, convert.SafeInt(n)), nil
+	return exp.Split(convert.ToString(str), convert.ToInt(n)), nil
 }
 
 func (f *Regex) cached(regex string) (*regexp.Regexp, error) {

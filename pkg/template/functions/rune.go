@@ -16,7 +16,7 @@ type Rune struct {
 	regexCache map[string][]rune
 }
 
-func NewRuneFuncs() *Rune {
+func NewRune() *Rune {
 	return &Rune{
 		rangeCache: make(map[runeRange][]rune),
 		regexCache: make(map[string][]rune),
@@ -44,25 +44,25 @@ func (f *Rune) RangeSet(lower, upper any) []rune {
 	return set
 }
 
-func (f *Rune) RegexSet(pattern string) ([]rune, error) {
-	pattern = strings.TrimSpace(pattern)
+func (f *Rune) RegexSet(pattern any) ([]rune, error) {
+	pat := strings.TrimSpace(convert.ToString(pattern))
 
-	if set, ok := f.regexCache[pattern]; ok {
+	if set, ok := f.regexCache[pat]; ok {
 		return set, nil
 	}
 
-	if set := f.fromUnicode(pattern); set != nil {
-		f.regexCache[pattern] = set
+	if set := f.fromUnicode(pat); set != nil {
+		f.regexCache[pat] = set
 
 		return set, nil
 	}
 
-	set, err := f.syntaxSet(pattern)
+	set, err := f.syntaxSet(pat)
 	if err != nil {
 		return nil, err
 	}
 
-	f.regexCache[pattern] = set
+	f.regexCache[pat] = set
 
 	return set, nil
 }

@@ -8,61 +8,69 @@ import (
 type Env struct{}
 
 func EnvVarargInit(n *Env, args []any) (any, error) {
-	return n.Get(convert.ToStringList(args)[0]), nil
+	return n.Get(convert.ToStringSlice(args)[0]), nil
 }
 
-func (*Env) Escape(value string) string {
-	return env.Escape(value)
+func (*Env) Escape(value any) string {
+	return env.Escape(convert.ToString(value))
 }
 
-func (*Env) Unescape(value string) string {
-	return env.Unescape(value)
+func (*Env) Unescape(value any) string {
+	return env.Unescape(convert.ToString(value))
 }
 
-func (*Env) ToKey(key string) string {
-	return env.ToKey(key)
+func (*Env) ToKey(key any) string {
+	return env.ToKey(convert.ToString(key))
 }
 
-func (*Env) Expand(value string) string {
-	return env.Expand(value)
+func (*Env) Expand(value any) string {
+	return env.Expand(convert.ToString(value))
 }
 
 func (*Env) Map() (env.Map, error) {
 	return env.Environ()
 }
 
-func (*Env) Set(key string, value any) error {
-	return env.Set(key, convert.ToString(value))
+func (*Env) Set(key, value any) (bool, error) {
+	err := env.Set(convert.ToString(key), convert.ToString(value))
+
+	return err == nil, err
 }
 
-func (*Env) BatchSet(m any) error {
-	return env.BatchSet(convert.ToStringMap(m))
+func (*Env) BatchSet(m any) (bool, error) {
+	err := env.BatchSet(convert.ToStringMap(m))
+
+	return err == nil, err
 }
 
-func (*Env) Unset(key string) error {
-	return env.Unset(key)
+func (*Env) Unset(key any) (bool, error) {
+	err := env.Unset(convert.ToString(key))
+
+	return err == nil, err
 }
 
-func (*Env) BatchUnset(keys ...any) error {
-	return env.BatchUnset(convert.ToStringList(keys))
+func (*Env) BatchUnset(keys ...any) (bool, error) {
+	err := env.BatchUnset(convert.ToStringSlice(listConcat(keys...)))
+
+	return err == nil, err
 }
 
-func (*Env) IsSet(key string) bool {
-	return env.IsSet(key)
+func (*Env) IsSet(key any) bool {
+	return env.IsSet(convert.ToString(key))
 }
 
-func (*Env) Get(key string) string {
-	return env.Get(key)
+func (*Env) Get(key any) string {
+	return env.Get(convert.ToString(key))
 }
 
-func (*Env) RawGet(key string) string {
-	return env.RawGet(key)
+func (*Env) RawGet(key any) string {
+	return env.RawGet(convert.ToString(key))
 }
 
-func (*Env) RawOr(def, key string) string {
-	return env.RawOr(key, def)
+func (*Env) RawOr(def, key any) string {
+	return env.RawOr(convert.ToString(key), convert.ToString(def))
 }
 
-func (*Env) Or(def, key string) string {
-	return env.Or(key, def)
+func (*Env) Or(def, key any) string {
+	return env.Or(convert.ToString(key), convert.ToString(def))
 }

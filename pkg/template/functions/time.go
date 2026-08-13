@@ -1,6 +1,10 @@
 package functions
 
-import "time"
+import (
+	"time"
+
+	"github.com/JFAexe/tem/pkg/convert"
+)
 
 type Time struct{}
 
@@ -8,69 +12,54 @@ func (*Time) Now() time.Time {
 	return time.Now()
 }
 
-func (*Time) Offset(offset string, t time.Time) (time.Time, error) {
-	dur, err := time.ParseDuration(offset)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return t.Add(dur), nil
+func (*Time) Offset(offset, value any) time.Time {
+	return convert.ToTime(value).Add(convert.ToDuration(offset))
 }
 
-func (*Time) Truncate(step string, t time.Time) (time.Time, error) {
-	dur, err := time.ParseDuration(step)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return t.Truncate(dur), nil
+func (*Time) Truncate(step, value any) time.Time {
+	return convert.ToTime(value).Truncate(convert.ToDuration(step))
 }
 
-func (*Time) Round(step string, t time.Time) (time.Time, error) {
-	dur, err := time.ParseDuration(step)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return t.Round(dur), nil
+func (*Time) Round(step, value any) time.Time {
+	return convert.ToTime(value).Round(convert.ToDuration(step))
 }
 
-func (*Time) UTC(t time.Time) time.Time {
-	return t.UTC()
+func (*Time) UTC(value any) time.Time {
+	return convert.ToTime(value).UTC()
 }
 
-func (*Time) Local(t time.Time) time.Time {
-	return t.Local()
+func (*Time) Local(value any) time.Time {
+	return convert.ToTime(value).Local()
 }
 
-func (*Time) Format(format string, t time.Time) string {
-	return t.Format(format)
+func (*Time) Format(format, value any) string {
+	return convert.ToTime(value).Format(convert.ToString(format))
 }
 
-func (*Time) String(t time.Time) string {
-	return t.Format(time.RFC3339)
+func (*Time) String(value any) string {
+	return convert.ToTime(value).Format(time.RFC3339)
 }
 
-func (*Time) Time(t time.Time) string {
-	return t.Format(time.TimeOnly)
+func (*Time) Time(value any) string {
+	return convert.ToTime(value).Format(time.TimeOnly)
 }
 
-func (*Time) Date(t time.Time) string {
-	return t.Format(time.DateOnly)
+func (*Time) Date(value any) string {
+	return convert.ToTime(value).Format(time.DateOnly)
 }
 
-func (*Time) DateTime(t time.Time) string {
-	return t.Format(time.DateTime)
+func (*Time) DateTime(value any) string {
+	return convert.ToTime(value).Format(time.DateTime)
 }
 
-func (*Time) Unix(t time.Time) int64 {
-	return t.Unix()
+func (*Time) Unix(value any) int64 {
+	return convert.ToTime(value).Unix()
 }
 
-func (*Time) Since(t time.Time) time.Duration {
-	return time.Since(t)
+func (*Time) Since(value any) time.Duration {
+	return time.Since(convert.ToTime(value))
 }
 
-func (*Time) Until(t time.Time) time.Duration {
-	return time.Until(t)
+func (*Time) Until(value any) time.Duration {
+	return time.Until(convert.ToTime(value))
 }

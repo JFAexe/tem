@@ -1,38 +1,42 @@
 package functions
 
-import "path"
+import (
+	"path"
+
+	"github.com/JFAexe/tem/pkg/convert"
+)
 
 type Path struct{}
 
-func (*Path) Clean(s string) string {
-	return path.Clean(s)
+func (*Path) Clean(value any) string {
+	return path.Clean(convert.ToString(value))
 }
 
-func (*Path) IsAbs(s string) bool {
-	return path.IsAbs(s)
+func (*Path) IsAbs(value any) bool {
+	return path.IsAbs(convert.ToString(value))
 }
-func (*Path) Base(s string) string {
-	return path.Base(s)
-}
-
-func (*Path) Dir(s string) string {
-	return path.Dir(s)
+func (*Path) Base(value any) string {
+	return path.Base(convert.ToString(value))
 }
 
-func (*Path) Ext(s string) string {
-	return path.Ext(s)
+func (*Path) Dir(value any) string {
+	return path.Dir(convert.ToString(value))
 }
 
-func (*Path) Join(elems ...string) string {
-	return path.Join(elems...)
+func (*Path) Ext(value any) string {
+	return path.Ext(convert.ToString(value))
 }
 
-func (*Path) Split(s string) []string {
-	dir, file := path.Split(s)
+func (*Path) Join(values ...any) string {
+	return path.Join(convert.ToStringSlice(values)...)
+}
+
+func (*Path) Split(value any) []string {
+	dir, file := path.Split(convert.ToString(value))
 
 	return []string{dir, file}
 }
 
-func (*Path) Match(pattern, name string) (bool, error) {
-	return path.Match(pattern, name)
+func (*Path) Match(pattern, name any) (bool, error) {
+	return path.Match(convert.ToString(pattern), convert.ToString(name))
 }

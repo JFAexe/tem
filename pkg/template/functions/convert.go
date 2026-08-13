@@ -41,31 +41,39 @@ func (*Convert) Time(value any) time.Time {
 }
 
 func (*Convert) List(value any) []any {
-	return convert.ToAnyList(value)
+	return convert.ToAnySlice(value)
 }
 
 func (*Convert) Bools(value any) []bool {
-	return convert.ToBoolList(value)
+	return convert.ToBoolSlice(value)
 }
 
 func (*Convert) Strings(value any) []string {
-	return convert.ToStringList(value)
+	return convert.ToStringSlice(value)
 }
 
 func (*Convert) Ints(value any) []int64 {
-	return convert.ToInt64List(value)
+	return convert.ToInt64Slice(value)
 }
 
 func (*Convert) Floats(value any) []float64 {
-	return convert.ToFloat64List(value)
+	return convert.ToFloat64Slice(value)
+}
+
+func (*Convert) Durations(value any) []time.Duration {
+	return convert.ToDurationSlice(value)
+}
+
+func (*Convert) Times(value any) []time.Time {
+	return convert.ToTimeSlice(value)
 }
 
 func (*Convert) Runes(value any) []rune {
-	return convert.ToRuneList(value)
+	return convert.ToRuneSlice(value)
 }
 
 func (*Convert) Bytes(value any) []byte {
-	return convert.ToByteList(value)
+	return convert.ToByteSlice(value)
 }
 
 func (*Convert) Map(value any) map[string]any {
@@ -86,4 +94,12 @@ func (*Convert) IntMap(value any) map[string]int64 {
 
 func (*Convert) FloatMap(value any) map[string]float64 {
 	return convert.ToFloat64Map(value)
+}
+
+func (*Convert) DurationMap(value any) map[string]time.Duration {
+	return convert.ToDurationMap(value)
+}
+
+func (*Convert) TimeMap(value any) map[string]time.Time {
+	return convert.ToTimeMap(value)
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/bmatcuk/doublestar/v4"
 )
 
@@ -23,66 +24,68 @@ type WalkInfo struct {
 
 type Filepath struct{}
 
-func (*Filepath) Clean(s string) string {
-	return filepath.Clean(s)
+func (*Filepath) Clean(value any) string {
+	return filepath.Clean(convert.ToString(value))
 }
 
-func (*Filepath) Abs(s string) (string, error) {
-	return filepath.Abs(s)
+func (*Filepath) Abs(value any) (string, error) {
+	return filepath.Abs(convert.ToString(value))
 }
 
-func (*Filepath) IsAbs(s string) bool {
-	return filepath.IsAbs(s)
+func (*Filepath) IsAbs(value any) bool {
+	return filepath.IsAbs(convert.ToString(value))
 }
 
-func (*Filepath) Base(s string) string {
-	return filepath.Base(s)
+func (*Filepath) Base(value any) string {
+	return filepath.Base(convert.ToString(value))
 }
 
-func (*Filepath) Dir(s string) string {
-	return filepath.Dir(s)
+func (*Filepath) Dir(value any) string {
+	return filepath.Dir(convert.ToString(value))
 }
 
-func (*Filepath) Ext(s string) string {
-	return filepath.Ext(s)
+func (*Filepath) Ext(value any) string {
+	return filepath.Ext(convert.ToString(value))
 }
 
-func (*Filepath) Join(elems ...string) string {
-	return filepath.Join(elems...)
+func (*Filepath) Join(values ...string) string {
+	return filepath.Join(values...)
 }
 
-func (*Filepath) Split(s string) []string {
-	dir, file := filepath.Split(s)
+func (*Filepath) Split(value any) []string {
+	dir, file := filepath.Split(convert.ToString(value))
 
 	return []string{dir, file}
 }
 
-func (*Filepath) Match(pattern, name string) (bool, error) {
-	return doublestar.Match(pattern, name)
+func (*Filepath) Match(pattern, name any) (bool, error) {
+	return doublestar.Match(convert.ToString(pattern), convert.ToString(name))
 }
 
-func (*Filepath) Rel(target, base string) (string, error) {
-	return filepath.Rel(target, base)
+func (*Filepath) Rel(target, base any) (string, error) {
+	return filepath.Rel(convert.ToString(target), convert.ToString(base))
 }
 
-func (*Filepath) ToSlash(s string) string {
-	return filepath.ToSlash(s)
+func (*Filepath) ToSlash(value any) string {
+	return filepath.ToSlash(convert.ToString(value))
 }
 
-func (*Filepath) FromSlash(s string) string {
-	return filepath.FromSlash(s)
+func (*Filepath) FromSlash(value any) string {
+	return filepath.FromSlash(convert.ToString(value))
 }
 
-func (*Filepath) Volume(s string) string {
-	return filepath.VolumeName(s)
+func (*Filepath) Volume(value any) string {
+	return filepath.VolumeName(convert.ToString(value))
 }
 
-func (*Filepath) Glob(s string) ([]string, error) {
-	return doublestar.FilepathGlob(s)
+func (*Filepath) Glob(value any) ([]string, error) {
+	return doublestar.FilepathGlob(convert.ToString(value))
 }
 
-func (*Filepath) Walk(root string, args ...bool) ([]WalkInfo, error) {
-	if root = strings.TrimSpace(root); root == "" {
+func (*Filepath) Walk(root any, args ...any) ([]WalkInfo, error) {
+	rp := convert.ToString(root)
+
+	if rp = strings.TrimSpace(rp); rp == "" {
 		return nil, ErrEmptyPath
 	}
 
@@ -93,25 +96,25 @@ func (*Filepath) Walk(root string, args ...bool) ([]WalkInfo, error) {
 	)
 
 	for _, arg := range args {
-		skipDir = arg
+		skipDir = convert.ToBool(arg)
 	}
 
-	root, pattern = doublestar.SplitPattern(root)
+	rp, pattern = doublestar.SplitPattern(rp)
 
 	if !strings.ContainsAny(pattern, "*^!?[]{}") {
-		root = filepath.Join(root, pattern)
+		rp = filepath.Join(rp, pattern)
 		pattern = "**"
 	}
 
-	if err := doublestar.GlobWalk(os.DirFS(filepath.Clean(root)), pattern, func(p string, d fs.DirEntry) (e error) {
+	if err := doublestar.GlobWalk(os.DirFS(filepath.Clean(rp)), pattern, func(value string, d fs.DirEntry) (e error) {
 		if skipDir && d.IsDir() {
 			return nil
 		}
 
 		entry := WalkInfo{
 			Name:    d.Name(),
-			Path:    filepath.Join(root, p),
-			RelPath: p,
+			Path:    filepath.Join(rp, value),
+			RelPath: value,
 			IsFile:  d.Type().IsRegular(),
 			IsDir:   d.IsDir(),
 		}
@@ -130,26 +133,30 @@ func (*Filepath) Walk(root string, args ...bool) ([]WalkInfo, error) {
 	return entries, nil
 }
 
-func (*Filepath) Exists(path string) bool {
-	_, err := os.Stat(filepath.Clean(path))
+func (*Filepath) Exists(value any) bool {
+	_, err := os.Stat(filepath.Clean(convert.ToString(value)))
 
 	return err == nil
 }
 
-func (*Filepath) IsDir(path string) bool {
-	stat, err := os.Stat(filepath.Clean(path))
+func (*Filepath) IsDir(value any) bool {
+	stat, err := os.Stat(filepath.Clean(convert.ToString(value)))
 
 	return err == nil && stat.Mode().IsDir()
 }
 
-func (*Filepath) IsFile(path string) bool {
-	stat, err := os.Stat(filepath.Clean(path))
-
-	return err == nil && stat.Mode().IsRegular()
+func (*Filepath) IsFile(value any) bool {
+	return isFile(value)
 }
 
-func (*Filepath) IsSymlink(path string) bool {
-	stat, err := os.Lstat(filepath.Clean(path))
+func (*Filepath) IsSymlink(value any) bool {
+	stat, err := os.Lstat(filepath.Clean(convert.ToString(value)))
 
 	return err == nil && stat.Mode()&fs.ModeSymlink != 0
+}
+
+func isFile(value any) bool {
+	stat, err := os.Stat(filepath.Clean(convert.ToString(value)))
+
+	return err == nil && stat.Mode().IsRegular()
 }

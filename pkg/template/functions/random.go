@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"math/big"
 	"reflect"
@@ -25,7 +24,7 @@ type Random struct {
 	runes *Rune
 }
 
-func NewRandomFuncs(runeFuncs *Rune) *Random {
+func NewRandom(runeFuncs *Rune) *Random {
 	return &Random{
 		runes: runeFuncs,
 	}
@@ -36,12 +35,23 @@ func (f *Random) Pick(values ...any) (any, error) {
 }
 
 func (*Random) PickFrom(value any) (any, error) {
-	if reflect.ValueOf(value).Kind() == reflect.Map {
-		value = slices.Sorted(maps.Keys(convert.ToAnyMap(value)))
+	rv, err := indirect(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
+		return nil, ErrEmptyList
+	}
+
+	if rv.Kind() == reflect.Map {
+		out := make([]any, 0, rv.Len())
+
+		for iter := rv.MapRange(); iter.Next(); {
+			out = append(out, iter.Value().Interface())
+		}
+
+		value = out
 	}
 
 	var (
-		values = convert.ToAnyList(value)
+		values = convert.ToAnySlice(value)
 		count  = int64(len(values))
 	)
 
@@ -54,35 +64,35 @@ func (*Random) PickFrom(value any) (any, error) {
 		return nil, err
 	}
 
-	return values[convert.Clamp(idx, 0, count)], nil
+	return values[convert.Clamp(idx, 0, count-1)], nil
 }
 
-func (*Random) Int(args ...int64) (int64, error) {
-	return randInt64Range(args, false)
+func (*Random) Int(args ...any) (int64, error) {
+	return randInt64Range(convert.ToInt64Slice(args), false)
 }
 
-func (*Random) IntInclusive(args ...int64) (int64, error) {
-	return randInt64Range(args, true)
+func (*Random) IntInclusive(args ...any) (int64, error) {
+	return randInt64Range(convert.ToInt64Slice(args), true)
 }
 
-func (*Random) Float(args ...float64) (float64, error) {
-	return randFloat64Range(args, false)
+func (*Random) Float(args ...any) (float64, error) {
+	return randFloat64Range(convert.ToFloat64Slice(args), false)
 }
 
-func (*Random) FloatInclusive(args ...float64) (float64, error) {
-	return randFloat64Range(args, true)
+func (*Random) FloatInclusive(args ...any) (float64, error) {
+	return randFloat64Range(convert.ToFloat64Slice(args), true)
 }
 
-func (f *Random) Bool(args ...float64) (bool, error) {
-	switch len(args) {
+func (f *Random) Bool(args ...any) (bool, error) {
+	switch fs := convert.ToFloat64Slice(args); len(fs) {
 	case 0:
 		return randBool(0.5)
 	default:
-		return randBool(args[len(args)-1])
+		return randBool(fs[len(fs)-1])
 	}
 }
 
-func (f *Random) String(length int64, args ...any) (_ string, err error) {
+func (f *Random) String(length any, args ...any) (_ string, err error) {
 	var set []rune
 
 	switch len(args) {
@@ -93,64 +103,64 @@ func (f *Random) String(length int64, args ...any) (_ string, err error) {
 	case 2:
 		set = f.runes.RangeSet(args[0], args[1])
 	default:
-		set = convert.ToRuneList(args[0])
+		set = convert.ToRuneSlice(args[0])
 	}
 
-	return randString(length, set)
+	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) ASCII(length int64) (string, error) {
+func (f *Random) ASCII(length any) (string, error) {
 	set, err := f.runes.RegexSet(`[[:ascii:]]`)
 	if err != nil {
 		return "", err
 	}
 
-	return randString(length, set)
+	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Alpha(length int64) (string, error) {
+func (f *Random) Alpha(length any) (string, error) {
 	set, err := f.runes.RegexSet(`[[:alpha:]]`)
 	if err != nil {
 		return "", err
 	}
 
-	return randString(length, set)
+	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Numeric(length int64) (string, error) {
+func (f *Random) Numeric(length any) (string, error) {
 	set, err := f.runes.RegexSet(`[[:digit:]]`)
 	if err != nil {
 		return "", err
 	}
 
-	return randString(length, set)
+	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) AlphaNumeric(length int64) (string, error) {
+func (f *Random) AlphaNumeric(length any) (string, error) {
 	set, err := f.runes.RegexSet(`[[:alnum:]]`)
 	if err != nil {
 		return "", err
 	}
 
-	return randString(length, set)
+	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Hex(length int64) (string, error) {
+func (f *Random) Hex(length any) (string, error) {
 	set, err := f.runes.RegexSet(`[[:xdigit:]]`)
 	if err != nil {
 		return "", err
 	}
 
-	return randString(length, set)
+	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Graphic(length int64) (string, error) {
+func (f *Random) Graphic(length any) (string, error) {
 	set, err := f.runes.RegexSet(`[[:graph:]]`)
 	if err != nil {
 		return "", err
 	}
 
-	return randString(length, set)
+	return randString(convert.ToInt64(length), set)
 }
 
 func randInt64Range(args []int64, inclusive bool) (int64, error) {
@@ -172,7 +182,7 @@ func randInt64Range(args []int64, inclusive bool) (int64, error) {
 			upper = slices.Max(args)
 		)
 
-		if upper > math.MaxInt-lower {
+		if upper-math.MaxInt > lower {
 			return 0, ErrRangeTooLarge
 		}
 
@@ -206,9 +216,10 @@ func randFloat64Range(args []float64, inclusive bool) (float64, error) {
 		var (
 			lower = slices.Min(args)
 			upper = slices.Max(args)
+			diff  = upper - lower
 		)
 
-		if upper > math.MaxFloat64-lower {
+		if math.IsInf(diff, 1) || math.IsNaN(diff) {
 			return 0, ErrRangeTooLarge
 		}
 
@@ -248,11 +259,11 @@ func randInt64(n int64, inclusive bool) (int64, error) {
 		return 0, fmt.Errorf("failed to read crypto/rand: %w", err)
 	}
 
-	return clampBigInt(value, 0, math.MaxInt64).Int64(), nil
+	return value.Int64(), nil
 }
 
 func randFloat64(inclusive bool) (float64, error) {
-	upper := big.NewInt(math.MaxInt64)
+	upper := new(big.Int).Lsh(big.NewInt(1), 53)
 
 	if inclusive {
 		upper.Add(upper, big.NewInt(1))
@@ -263,12 +274,7 @@ func randFloat64(inclusive bool) (float64, error) {
 		return 0, fmt.Errorf("failed to read crypto/rand: %w", err)
 	}
 
-	float := new(big.Float).SetInt(value)
-	float.Quo(float, new(big.Float).SetInt(upper))
-
-	result, _ := clampBigFloat(float, 0, 1).Float64()
-
-	return result, nil
+	return float64(value.Int64()) / float64(1<<53), nil
 }
 
 func randBool(p float64) (bool, error) {
@@ -289,50 +295,46 @@ func randBool(p float64) (bool, error) {
 }
 
 func randString(length int64, set []rune) (string, error) {
-	length = max(0, length)
-
-	if len(set) == 0 {
+	if length = max(0, length); len(set) == 0 || length == 0 {
 		return "", nil
 	}
 
 	var (
 		builder strings.Builder
 
-		count = big.NewInt(int64(len(set)))
+		setLen = int(len(set))
 	)
 
-	for range length {
-		idx, err := rand.Int(rand.Reader, count)
-		if err != nil {
-			return "", err
+	builder.Grow(int(length) * 4)
+
+	var (
+		size = int(min(length, 128))
+		buf  = make([]byte, size)
+		lim  = 256 - (256 % setLen)
+		idx  = 0
+	)
+
+	if lim == 0 {
+		lim = 256
+	}
+
+	for i := int64(0); i < length; {
+		if idx == 0 {
+			if _, err := rand.Read(buf); err != nil {
+				return "", err
+			}
+
+			idx = size
 		}
 
-		builder.WriteRune(set[idx.Int64()])
+		idx--
+
+		if b := int(buf[idx]); b < lim {
+			builder.WriteRune(set[b%setLen])
+
+			i++
+		}
 	}
 
 	return builder.String(), nil
-}
-
-func clampBigInt(v *big.Int, mi, ma int64) *big.Int {
-	if m := big.NewInt(mi); v.Cmp(m) < 0 {
-		return m
-	}
-
-	if m := big.NewInt(ma); v.Cmp(m) > 0 {
-		return m
-	}
-
-	return v
-}
-
-func clampBigFloat(v *big.Float, mi, ma float64) *big.Float {
-	if m := big.NewFloat(mi); v.Cmp(m) < 0 {
-		return m
-	}
-
-	if m := big.NewFloat(ma); v.Cmp(m) > 0 {
-		return m
-	}
-
-	return v
 }

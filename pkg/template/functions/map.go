@@ -3,7 +3,7 @@ package functions
 import (
 	"fmt"
 	"maps"
-	"slices"
+	"reflect"
 
 	"github.com/JFAexe/tem/pkg/convert"
 )
@@ -28,80 +28,139 @@ func (*Map) New(kv ...any) (map[string]any, error) {
 	return out, nil
 }
 
-func (*Map) Get(key string, d map[string]any) any {
-	if v, ok := d[key]; ok {
-		return v
+func (*Map) Merge(to any, with ...any) map[string]any {
+	t := convert.ToAnyMap(to)
+
+	for _, w := range with {
+		maps.Copy(t, convert.ToAnyMap(w))
 	}
 
-	return ""
+	return t
 }
 
-func (*Map) GetOr(key string, defaultValue any, d map[string]any) any {
-	if v, ok := d[key]; ok {
-		return v
-	}
-
-	return defaultValue
-}
-
-func (*Map) Set(key string, value any, d map[string]any) map[string]any {
-	d[key] = value
-
-	return d
-}
-
-func (*Map) Unset(key string, d map[string]any) map[string]any {
-	delete(d, key)
-
-	return d
-}
-
-func (*Map) IsSet(key string, d map[string]any) bool {
-	_, ok := d[key]
-
-	return ok
-}
-
-func (*Map) Merge(from, to map[string]any) map[string]any {
-	maps.Copy(to, from)
-
-	return to
-}
-
-func (*Map) Pick(d map[string]any, keys ...string) map[string]any {
+func (*Map) Pick(m any, keys ...any) map[string]any {
 	out := make(map[string]any, len(keys))
 
+	if d, ok := m.(map[string]any); ok {
+		for _, k := range keys {
+			ks := convert.ToString(k)
+
+			if v, ok := d[ks]; ok {
+				out[ks] = v
+			}
+		}
+
+		return out
+	}
+
+	rv, err := indirect(reflect.ValueOf(m))
+	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
+		return out
+	}
+
 	for _, k := range keys {
-		if v, ok := d[k]; ok {
-			out[k] = v
+		kv, err := resolveKey(rv, k)
+		if err != nil {
+			continue
+		}
+
+		if val := rv.MapIndex(kv); val.IsValid() {
+			out[convert.ToString(k)] = val.Interface()
 		}
 	}
 
 	return out
 }
 
-func (*Map) Omit(d map[string]any, keys ...string) map[string]any {
-	out := make(map[string]any, len(d))
+func (*Map) Omit(m any, keys ...any) map[string]any {
+	set := make(map[string]struct{}, len(keys))
 
-	for k, v := range d {
-		if !slices.Contains(keys, k) {
-			out[k] = v
+	for _, k := range keys {
+		set[convert.ToString(k)] = struct{}{}
+	}
+
+	if d, ok := m.(map[string]any); ok {
+		out := make(map[string]any, len(d))
+
+		for k, v := range d {
+			if _, ok := set[k]; !ok {
+				out[k] = v
+			}
+		}
+
+		return out
+	}
+
+	rv, err := indirect(reflect.ValueOf(m))
+	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
+		return make(map[string]any)
+	}
+
+	out := make(map[string]any, rv.Len())
+
+	for iter := rv.MapRange(); iter.Next(); {
+		ks := convert.ToString(iter.Key().Interface())
+
+		if _, ok := set[ks]; !ok {
+			out[ks] = iter.Value().Interface()
 		}
 	}
 
 	return out
 }
 
-func (*Map) Keys(d map[string]any) []any {
-	out := make([]any, 0, len(d))
+func (*Map) Keys(m any) []any {
+	if v, ok := m.(map[string]any); ok {
+		out := make([]any, 0, len(v))
 
-	for k := range d {
-		out = append(out, k)
+		for k := range v {
+			out = append(out, k)
+		}
+
+		return out
+	}
+
+	rv, err := indirect(reflect.ValueOf(m))
+	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
+		return make([]any, 0)
+	}
+
+	var (
+		out  = make([]any, 0, rv.Len())
+		iter = rv.MapRange()
+	)
+
+	for iter.Next() {
+		out = append(out, iter.Key().Interface())
 	}
 
 	return out
 }
 
-func (*Map) Values(d map[string]any) []any {
-	return slices.Collect(maps.Values(d))
+func (*Map) Values(m any) []any {
+	if v, ok := m.(map[string]any); ok {
+		out := make([]any, 0, len(v))
+
+		for _, v := range v {
+			out = append(out, v)
+		}
+
+		return out
+	}
+
+	rv, err := indirect(reflect.ValueOf(m))
+	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
+		return []any{}
+	}
+
+	var (
+		out  = make([]any, 0, rv.Len())
+		iter = rv.MapRange()
+	)
+
+	for iter.Next() {
+		out = append(out, iter.Value().Interface())
+	}
+
+	return out
 }

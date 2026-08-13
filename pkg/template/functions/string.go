@@ -3,159 +3,270 @@ package functions
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
+var singleQuoteReplacer = strings.NewReplacer(`'`, `\'`)
+
 type String struct{}
 
-func (*String) Quote(s string) string {
-	return fmt.Sprintf("%q", s)
+func (*String) Quote(value any) string {
+	return fmt.Sprintf("%q", convert.ToString(value))
 }
 
-func (*String) Squote(s string) string {
-	return fmt.Sprintf("'%s'", strings.ReplaceAll(s, `'`, `''`))
+func (*String) Squote(value any) string {
+	return fmt.Sprintf("'%s'", singleQuoteReplacer.Replace(convert.ToString(value)))
 }
 
-func (*String) Bquote(s string) string {
-	return fmt.Sprintf("`%s`", strings.ReplaceAll(s, "`", "``"))
+func (*String) Bquote(value any) string {
+	return fmt.Sprintf("`%s`", convert.ToString(value))
 }
 
-func (*String) EqualFold(t, s string) bool {
-	return strings.EqualFold(s, t)
+func (*String) EqualFold(other, value any) bool {
+	return strings.EqualFold(convert.ToString(value), convert.ToString(other))
 }
 
-func (*String) Lower(s string) string {
-	return strings.ToLower(s)
+func (*String) ToValidUTF8(replacement, value any) string {
+	return strings.ToValidUTF8(convert.ToString(value), convert.ToString(replacement))
 }
 
-func (*String) Upper(s string) string {
-	return strings.ToUpper(s)
+func (*String) Lower(value any) string {
+	return strings.ToLower(convert.ToString(value))
 }
 
-func (*String) Title(s string) string {
-	return strings.ToTitle(s)
+func (*String) Upper(value any) string {
+	return strings.ToUpper(convert.ToString(value))
 }
 
-func (*String) TrimSpace(s string) string {
-	return strings.TrimSpace(s)
+func (*String) Title(value any) string {
+	return strings.ToTitle(convert.ToString(value))
 }
 
-func (*String) Trim(cutset, s string) string {
-	return strings.Trim(s, cutset)
+func (*String) Cut(separator, value any) ([]string, bool) {
+	before, after, ok := strings.Cut(convert.ToString(value), convert.ToString(separator))
+
+	return []string{before, after}, ok
 }
 
-func (*String) TrimLeft(cutset, s string) string {
-	return strings.TrimLeft(s, cutset)
+func (*String) CutPrefix(prefix, value any) (string, bool) {
+	return strings.CutPrefix(convert.ToString(value), convert.ToString(prefix))
 }
 
-func (*String) TrimRight(cutset, s string) string {
-	return strings.TrimRight(s, cutset)
+func (*String) CutSuffix(suffix, value any) (string, bool) {
+	return strings.CutSuffix(convert.ToString(value), convert.ToString(suffix))
 }
 
-func (*String) TrimPrefix(prefix, s string) string {
-	return strings.TrimPrefix(s, prefix)
+func (*String) TrimSpace(value any) string {
+	return strings.TrimSpace(convert.ToString(value))
 }
 
-func (*String) TrimSuffix(suffix, s string) string {
-	return strings.TrimSuffix(s, suffix)
+func (*String) Trim(cutset, value any) string {
+	return strings.Trim(convert.ToString(value), convert.ToString(cutset))
 }
 
-func (*String) HasPrefix(prefix, s string) bool {
-	return strings.HasPrefix(s, prefix)
+func (*String) TrimLeft(cutset, value any) string {
+	return strings.TrimLeft(convert.ToString(value), convert.ToString(cutset))
 }
 
-func (*String) HasSuffix(suffix, s string) bool {
-	return strings.HasSuffix(s, suffix)
+func (*String) TrimRight(cutset, value any) string {
+	return strings.TrimRight(convert.ToString(value), convert.ToString(cutset))
 }
 
-func (*String) Contains(sub, s string) bool {
-	return strings.Contains(s, sub)
+func (*String) TrimPrefix(prefix, value any) string {
+	return strings.TrimPrefix(convert.ToString(value), convert.ToString(prefix))
 }
 
-func (*String) Replace(old, new, src string) string {
-	return strings.ReplaceAll(src, old, new)
+func (*String) TrimSuffix(suffix, value any) string {
+	return strings.TrimSuffix(convert.ToString(value), convert.ToString(suffix))
 }
 
-func (*String) Repeat(count int64, s string) string {
-	return strings.Repeat(s, convert.SafeInt(count))
+func (*String) HasPrefix(prefix, value any) bool {
+	return strings.HasPrefix(convert.ToString(value), convert.ToString(prefix))
 }
 
-func (*String) Split(sep string, s string) []string {
-	return strings.Split(s, sep)
+func (*String) HasSuffix(suffix, value any) bool {
+	return strings.HasSuffix(convert.ToString(value), convert.ToString(suffix))
 }
 
-func (*String) Join(sep string, values ...any) string {
-	return strings.Join(convert.ToStringList(values), sep)
+func (*String) Contains(subvalue, value any) bool {
+	return strings.Contains(convert.ToString(value), convert.ToString(subvalue))
 }
 
-func (*String) Truncate(length int64, s string) string {
+func (*String) ContainsAny(charset, value any) bool {
+	return strings.ContainsAny(convert.ToString(value), convert.ToString(charset))
+}
+
+func (*String) Replace(old, new, value any) string {
+	return strings.ReplaceAll(convert.ToString(value), convert.ToString(old), convert.ToString(new))
+}
+
+func (*String) Repeat(count, value any) string {
+	return strings.Repeat(convert.ToString(value), convert.ToInt(count))
+}
+
+func (*String) Split(separator, value any) []string {
+	return strings.Split(convert.ToString(value), convert.ToString(separator))
+}
+
+func (*String) Join(separator any, values ...any) string {
+	return strings.Join(convert.ToStringSlice(values), convert.ToString(separator))
+}
+
+func (*String) Fields(value any) []string {
+	return strings.Fields(convert.ToString(value))
+}
+
+func (*String) Truncate(length, value any) string {
 	var (
-		size  = convert.SafeInt(length)
-		runes = []rune(s)
+		str  = convert.ToString(value)
+		size = convert.ToInt(length)
 	)
 
-	if size < 0 && len(runes)+size > 0 {
-		return string(runes[len(runes)+size:])
+	if str == "" {
+		return str
 	}
 
-	if size >= 0 && len(runes) > size {
-		return string(runes[:size])
+	var (
+		total    = utf8.RuneCountInString(str)
+		keep     = total + size
+		negative = size < 0 && keep > 0
+		positive = size >= 0 && total > size
+
+		count, start int
+		end          = len(str)
+	)
+
+	for i, w := 0, 0; i < len(str); i += w {
+		_, w = utf8.DecodeRuneInString(str[i:])
+
+		if negative && count == keep {
+			start = i
+
+			break
+		}
+
+		if positive && count == size {
+			end = i
+
+			break
+		}
+
+		count++
 	}
 
-	return s
+	return str[start:end]
 }
 
-func (*String) Indent(level int64, s string) string {
-	if level <= 0 || s == "" {
-		return s
+func (*String) IndentWith(char, level, value any) string {
+	var (
+		str = convert.ToString(value)
+		lvl = convert.ToInt(level)
+		chr = convert.ToRune(char)
+	)
+
+	if lvl <= 0 || str == "" {
+		return str
 	}
 
 	var (
 		builder strings.Builder
 
-		prefix = strings.Repeat(" ", convert.SafeInt(level))
+		newlines = strings.Count(str, "\n")
+		prefix   = strings.Repeat(string(chr), lvl)
 	)
 
-	for i, s := range strings.Split(s, "\n") {
-		if i > 0 {
-			builder.WriteByte('\n')
-		}
+	builder.Grow(len(str) + lvl*newlines + 1)
 
-		if strings.TrimSpace(s) != "" {
+	for part := range strings.SplitSeq(str, "\n") {
+		if !isSpace(part) {
 			builder.WriteString(prefix)
-			builder.WriteString(s)
+			builder.WriteString(part)
 		}
+
+		builder.WriteByte('\n')
 	}
 
 	return builder.String()
 }
 
-func (*String) Fold(count int64, s string) string {
-	if count < 0 || s == "" {
-		return s
+func (f *String) Indent(level, value any) string {
+	return f.IndentWith(' ', level, value)
+}
+
+func (f *String) IndentWithN(char, level, value any) string {
+	str := f.IndentWith(char, level, value)
+
+	if isSpace(str) || strings.HasPrefix(str, "\n") {
+		return str
+	}
+
+	return "\n" + str
+}
+
+func (f *String) IndentN(level, value any) string {
+	return f.IndentWithN(' ', level, value)
+}
+
+func (*String) Fold(length, value any) string {
+	var (
+		str = convert.ToString(value)
+		lnt = convert.ToInt(length)
+	)
+
+	if lnt <= 0 || str == "" {
+		return str
+	}
+
+	total := utf8.RuneCountInString(str)
+
+	if total <= lnt {
+		return str
 	}
 
 	var (
-		builder strings.Builder
+		start, chunk int
+		builder      strings.Builder
 
-		runes  = []rune(s)
-		length = int64(len(runes))
+		size = len(str)
 	)
 
-	if length <= count {
-		return s
-	}
+	builder.Grow(size + ((total + lnt - 1) / lnt) - 1)
 
-	for i := int64(0); i < length; i += count {
-		end := min(i+count, length)
+	for i := 0; i < size; {
+		_, w := utf8.DecodeRuneInString(str[i:])
 
-		builder.WriteString(string(runes[i:end]))
+		i += w
 
-		if end < length {
-			builder.WriteByte('\n')
+		chunk++
+
+		if chunk == lnt {
+			builder.WriteString(str[start:i])
+
+			if i < size {
+				builder.WriteByte('\n')
+			}
+
+			start = i
+			chunk = 0
 		}
 	}
 
+	if start < size {
+		builder.WriteString(str[start:])
+	}
+
 	return builder.String()
+}
+
+func isSpace(value string) bool {
+	for _, r := range value {
+		if !unicode.IsSpace(r) {
+			return false
+		}
+	}
+
+	return true
 }
