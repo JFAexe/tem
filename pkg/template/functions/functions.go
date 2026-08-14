@@ -37,7 +37,6 @@ func FuncMap(t *template.Template) template.FuncMap {
 		runeFuncs     = NewRune()
 		randomFuncs   = NewRandom(runeFuncs)
 		envFuncs      = new(Env)
-		fileFuncs     = new(File)
 		filepathFuncs = new(Filepath)
 		pathFuncs     = new(Path)
 		stringFuncs   = new(String)
@@ -60,7 +59,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"ternary":  Ternary,
 		"pwd":      os.Getwd,
 		"hostname": os.Hostname,
-		"file":     NamespaceVararg(fileFuncs, FileVarargInit),
+		"file":     File,
 		"to":       Namespace(convertFuncs),
 		"filepath": Namespace(filepathFuncs),
 		"path":     Namespace(pathFuncs),
@@ -311,6 +310,20 @@ func IsSet(item any, args ...any) bool {
 	}
 
 	return true
+}
+
+func File(value any) (string, error) {
+	abs, err := filepath.Abs(convert.ToString(value))
+	if err != nil {
+		return "", err
+	}
+
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		return "", err
+	}
+
+	return string(raw), nil
 }
 
 func Include(t *template.Template) func(name any, data ...any) (string, error) {
