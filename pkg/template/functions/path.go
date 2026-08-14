@@ -8,6 +8,10 @@ import (
 
 type Path struct{}
 
+func (*Path) Separator() string {
+	return "/"
+}
+
 func (*Path) Clean(value any) string {
 	return path.Clean(convert.ToString(value))
 }

@@ -24,6 +24,10 @@ type WalkInfo struct {
 
 type Filepath struct{}
 
+func (*Filepath) Separator() string {
+	return string(filepath.Separator)
+}
+
 func (*Filepath) Clean(value any) string {
 	return filepath.Clean(convert.ToString(value))
 }
@@ -146,17 +150,13 @@ func (*Filepath) IsDir(value any) bool {
 }
 
 func (*Filepath) IsFile(value any) bool {
-	return isFile(value)
+	stat, err := os.Stat(filepath.Clean(convert.ToString(value)))
+
+	return err == nil && stat.Mode().IsRegular()
 }
 
 func (*Filepath) IsSymlink(value any) bool {
 	stat, err := os.Lstat(filepath.Clean(convert.ToString(value)))
 
 	return err == nil && stat.Mode()&fs.ModeSymlink != 0
-}
-
-func isFile(value any) bool {
-	stat, err := os.Stat(filepath.Clean(convert.ToString(value)))
-
-	return err == nil && stat.Mode().IsRegular()
 }

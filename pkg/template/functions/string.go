@@ -261,6 +261,28 @@ func (*String) Fold(length, value any) string {
 	return builder.String()
 }
 
+func (*String) TrimTrailingSpace(value any) string {
+	str := convert.ToString(value)
+
+	if str == "" {
+		return str
+	}
+
+	var builder strings.Builder
+
+	builder.Grow(len(str))
+
+	for part := range strings.SplitSeq(str, "\n") {
+		if !isSpace(part) {
+			builder.WriteString(strings.TrimRightFunc(part, unicode.IsSpace))
+		}
+
+		builder.WriteByte('\n')
+	}
+
+	return builder.String()
+}
+
 func isSpace(value string) bool {
 	for _, r := range value {
 		if !unicode.IsSpace(r) {
