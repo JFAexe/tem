@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/JFAexe/tem/pkg/convert"
+	"github.com/JFAexe/tem/pkg/reflection"
 )
 
 var (
@@ -35,7 +36,7 @@ func (f *Random) Pick(values ...any) (any, error) {
 }
 
 func (*Random) PickFrom(value any) (any, error) {
-	rv, err := indirect(reflect.ValueOf(value))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
 	if err != nil || !rv.IsValid() {
 		return nil, ErrEmptyList
 	}

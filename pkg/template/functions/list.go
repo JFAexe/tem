@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/JFAexe/tem/pkg/convert"
+	"github.com/JFAexe/tem/pkg/reflection"
 )
 
 type List struct{}
@@ -25,7 +26,7 @@ func (*List) First(l any) any {
 		return v[0]
 	}
 
-	rv, err := indirect(reflect.ValueOf(l))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(l))
 	if err != nil || !rv.IsValid() {
 		return nil
 	}
@@ -42,7 +43,7 @@ func (*List) Last(l any) any {
 		return v[len(v)-1]
 	}
 
-	rv, err := indirect(reflect.ValueOf(l))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(l))
 	if err != nil || !rv.IsValid() {
 		return nil
 	}
@@ -85,7 +86,9 @@ func (*List) SortBy(key, items any) ([]any, error) {
 		return s, nil
 	}
 
-	slices.SortStableFunc(s, func(a, b any) int { return compareAny(extractKey(a, key), extractKey(b, key)) })
+	slices.SortStableFunc(s, func(a, b any) int {
+		return compareAny(reflection.ExtractKey(a, key), reflection.ExtractKey(b, key))
+	})
 
 	return s, nil
 }
@@ -119,8 +122,8 @@ func compareAny(a, b any) int {
 	}
 
 	var (
-		ra, _ = indirect(reflect.ValueOf(a))
-		rb, _ = indirect(reflect.ValueOf(b))
+		ra, _ = reflection.IndirectValue(reflect.ValueOf(a))
+		rb, _ = reflection.IndirectValue(reflect.ValueOf(b))
 	)
 
 	if (ra.CanInt() || ra.CanFloat()) && (rb.CanInt() || rb.CanFloat()) {

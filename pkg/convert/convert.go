@@ -8,9 +8,10 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/JFAexe/tem/pkg/reflection"
 )
 
 const (
@@ -29,14 +30,6 @@ var timeLayouts = []string{
 	time.ANSIC,
 	time.UnixDate,
 }
-
-var structTags = []string{
-	"json",
-	"yaml",
-	"toml",
-}
-
-var reflectStringType = reflect.TypeFor[string]()
 
 type (
 	ConvertFunc[T any]           = func(any) T
@@ -100,9 +93,8 @@ func ToBool(value any) bool {
 		return false
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return false
 	}
 
@@ -139,16 +131,15 @@ func ToString(value any) string {
 		return v.GoString()
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return ""
 	}
 
 	switch rv.Kind() {
 	case reflect.String, reflect.Slice, reflect.Array:
-		if rv.Type().ConvertibleTo(reflectStringType) {
-			return rv.Convert(reflectStringType).String()
+		if target := reflect.TypeFor[string](); rv.Type().ConvertibleTo(target) {
+			return rv.Convert(target).String()
 		}
 	}
 
@@ -169,9 +160,8 @@ func ToRune(value any) rune {
 		return 0
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return 0
 	}
 
@@ -227,9 +217,8 @@ func ToInt64(value any) int64 {
 		}
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return 0
 	}
 
@@ -271,9 +260,8 @@ func ToFloat64(value any) float64 {
 		}
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return 0
 	}
 
@@ -309,9 +297,8 @@ func ToDuration(value any) time.Duration {
 		}
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return 0
 	}
 
@@ -347,9 +334,8 @@ func ToTime(value any) time.Time {
 		}
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return time.Time{}
 	}
 
@@ -377,9 +363,8 @@ func ToSlice[T any, S []T](value any, fn ConvertFunc[T]) S {
 		return slices.Clone(v)
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return make(S, 0)
 	}
 
@@ -461,9 +446,8 @@ func ToRuneSlice(value any) []rune {
 		return nil
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return nil
 	}
 
@@ -517,9 +501,8 @@ func ToMap[K comparable, V any, M map[K]V](value any, kf ConvertKeyFunc[K], vf C
 		return make(M)
 	}
 
-	rv := indirect(reflect.ValueOf(value))
-
-	if !rv.IsValid() {
+	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !rv.IsValid() {
 		return make(M)
 	}
 
@@ -541,40 +524,13 @@ func ToMap[K comparable, V any, M map[K]V](value any, kf ConvertKeyFunc[K], vf C
 
 		return out
 	case reflect.Struct:
-		var (
-			out = make(M, rv.NumField())
-			typ = rv.Type()
-		)
+		out := make(M, rv.NumField())
 
-		for i := 0; i < rv.NumField(); i++ {
-			field := typ.Field(i)
+		reflection.ForEachExportedField(rv, func(name string, field reflect.Value) bool {
+			out[kf(name)] = vf(field.Interface())
 
-			if !field.IsExported() {
-				continue
-			}
-
-			name := field.Name
-
-			for _, tag := range structTags {
-				val := field.Tag.Get(tag)
-
-				if val == "" || val == "-" {
-					continue
-				}
-
-				if before, _, ok := strings.Cut(val, ","); ok {
-					val = before
-				}
-
-				if val != "" {
-					name = val
-
-					break
-				}
-			}
-
-			out[kf(name)] = vf(rv.Field(i).Interface())
-		}
+			return true
+		})
 
 		return out
 	}
@@ -620,19 +576,4 @@ func ToDurationMap(value any) map[string]time.Duration {
 
 func ToTimeMap(value any) map[string]time.Time {
 	return ToMap(value, ToString, ToTime)
-}
-
-func indirect(v reflect.Value) reflect.Value {
-	for {
-		switch v.Kind() {
-		case reflect.Pointer, reflect.Interface:
-			if v.IsNil() {
-				return reflect.Value{}
-			}
-
-			v = v.Elem()
-		default:
-			return v
-		}
-	}
 }

@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/JFAexe/tem/pkg/convert"
+	"github.com/JFAexe/tem/pkg/reflection"
 )
 
 type Map struct{}
@@ -53,13 +54,13 @@ func (*Map) Pick(m any, keys ...any) map[string]any {
 		return out
 	}
 
-	rv, err := indirect(reflect.ValueOf(m))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
 	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
 		return out
 	}
 
 	for _, k := range keys {
-		kv, err := resolveKey(rv, k)
+		kv, err := reflection.ResolveKey(rv, k)
 		if err != nil {
 			continue
 		}
@@ -91,7 +92,7 @@ func (*Map) Omit(m any, keys ...any) map[string]any {
 		return out
 	}
 
-	rv, err := indirect(reflect.ValueOf(m))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
 	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
 		return make(map[string]any)
 	}
@@ -120,7 +121,7 @@ func (*Map) Keys(m any) []any {
 		return out
 	}
 
-	rv, err := indirect(reflect.ValueOf(m))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
 	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
 		return make([]any, 0)
 	}
@@ -148,7 +149,7 @@ func (*Map) Values(m any) []any {
 		return out
 	}
 
-	rv, err := indirect(reflect.ValueOf(m))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
 	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
 		return []any{}
 	}

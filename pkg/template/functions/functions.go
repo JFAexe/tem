@@ -6,19 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
 
 	"github.com/JFAexe/tem/pkg/convert"
-)
-
-var (
-	ErrNilPointer   = errors.New("nil pointer")
-	ErrInvalidIndex = errors.New("invalid index")
-	ErrOutOfRange   = errors.New("index out of range")
-	ErrTypeMismatch = errors.New("type mismatch")
-	ErrKeyMissing   = errors.New("map key missing")
+	"github.com/JFAexe/tem/pkg/reflection"
 )
 
 func Namespace[T any](n T) func() any {
@@ -58,15 +52,16 @@ func FuncMap(t *template.Template) template.FuncMap {
 	return template.FuncMap{
 		"inline":   Inline(t),
 		"include":  Include(t),
+		"default":  Default,
+		"indexOr":  IndexOr,
 		"set":      Set,
 		"unset":    Unset,
-		"indexOr":  IndexOr,
-		"default":  Default,
+		"isSet":    IsSet,
 		"ternary":  Ternary,
 		"pwd":      os.Getwd,
 		"hostname": os.Hostname,
-		"env":      NamespaceVararg(envFuncs, EnvVarargInit),
 		"file":     NamespaceVararg(fileFuncs, FileVarargInit),
+		"to":       Namespace(convertFuncs),
 		"filepath": Namespace(filepathFuncs),
 		"path":     Namespace(pathFuncs),
 		"string":   Namespace(stringFuncs),
@@ -78,7 +73,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"random":   Namespace(randomFuncs),
 		"map":      NamespaceVararg(mapFuncs, MapVarargInit),
 		"list":     NamespaceVararg(listFuncs, ListVarargInit),
-		"to":       Namespace(convertFuncs),
+		"env":      NamespaceVararg(envFuncs, EnvVarargInit),
 	}
 }
 
@@ -97,7 +92,11 @@ func Default(val, def any) any {
 
 	v := reflect.ValueOf(val)
 
-	if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && !v.IsNil() {
+	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return def
+		}
+
 		v = v.Elem()
 	}
 
@@ -120,7 +119,7 @@ func IndexOr(item, def any, args ...any) any {
 	}
 
 	for _, arg := range args {
-		next, err := traverse(v, arg)
+		next, err := reflection.Traverse(v, arg)
 		if err != nil {
 			return def
 		}
@@ -128,11 +127,7 @@ func IndexOr(item, def any, args ...any) any {
 		v = next
 	}
 
-	if v.IsValid() {
-		return v.Interface()
-	}
-
-	return def
+	return v.Interface()
 }
 
 func Set(item, value any, args ...any) (any, error) {
@@ -143,9 +138,9 @@ func Set(item, value any, args ...any) (any, error) {
 	v := reflect.ValueOf(item)
 
 	for i := 0; i < len(args)-1; i++ {
-		next, err := traverse(v, args[i])
+		next, err := reflection.Traverse(v, args[i])
 		if err != nil {
-			if errors.Is(err, ErrKeyMissing) {
+			if errors.Is(err, reflection.ErrKeyMissing) {
 				return item, fmt.Errorf("map key not found at step %d (cannot set nested value in nil map)", i)
 			}
 
@@ -157,7 +152,7 @@ func Set(item, value any, args ...any) (any, error) {
 
 	var err error
 
-	if v, err = indirect(v); err != nil {
+	if v, err = reflection.IndirectValue(v); err != nil {
 		return item, fmt.Errorf("cannot set on nil pointer")
 	}
 
@@ -172,12 +167,12 @@ func Set(item, value any, args ...any) (any, error) {
 
 	switch v.Kind() {
 	case reflect.Slice, reflect.Array:
-		idx, err := toIndex(key)
+		idx, err := reflection.ToIndex(key)
 		if err != nil {
 			return item, fmt.Errorf("final index: %w", err)
 		}
 
-		if idx < 0 || int(idx) >= v.Len() {
+		if idx < 0 || idx >= int64(v.Len()) {
 			return item, fmt.Errorf("final index out of range")
 		}
 
@@ -187,13 +182,8 @@ func Set(item, value any, args ...any) (any, error) {
 			return item, fmt.Errorf("target slice element is not settable")
 		}
 
-		if !val.IsValid() {
-			val = reflect.Zero(target.Type())
-		} else if val.Type() != target.Type() {
-			if !val.Type().ConvertibleTo(target.Type()) {
-				return item, fmt.Errorf("value type %v not convertible to %v", val.Type(), target.Type())
-			}
-			val = val.Convert(target.Type())
+		if val, err = reflection.ConvertValue(val, target.Type()); err != nil {
+			return item, err
 		}
 
 		target.Set(val)
@@ -202,22 +192,31 @@ func Set(item, value any, args ...any) (any, error) {
 			return item, fmt.Errorf("cannot set key in nil map")
 		}
 
-		kv, err := resolveKey(v, key)
+		kv, err := reflection.ResolveKey(v, key)
 		if err != nil {
 			return item, fmt.Errorf("final key: %w", err)
 		}
 
-		if !val.IsValid() {
-			val = reflect.Zero(v.Type().Elem())
-		} else if val.Type() != v.Type().Elem() {
-			if !val.Type().ConvertibleTo(v.Type().Elem()) {
-				return item, fmt.Errorf("value type %v not convertible to map elem type %v", val.Type(), v.Type().Elem())
-			}
-
-			val = val.Convert(v.Type().Elem())
+		if val, err = reflection.ConvertValue(val, v.Type().Elem()); err != nil {
+			return item, err
 		}
 
 		v.SetMapIndex(kv, val)
+	case reflect.Struct:
+		target, err := reflection.ResolveField(v, key)
+		if err != nil {
+			return item, fmt.Errorf("final key: %w", err)
+		}
+
+		if !target.CanSet() {
+			return item, fmt.Errorf("target struct field is not settable (struct is unaddressable)")
+		}
+
+		if val, err = reflection.ConvertValue(val, target.Type()); err != nil {
+			return item, err
+		}
+
+		target.Set(val)
 	default:
 		return item, fmt.Errorf("cannot set on type %v", v.Kind())
 	}
@@ -233,9 +232,9 @@ func Unset(item any, args ...any) (any, error) {
 	v := reflect.ValueOf(item)
 
 	for i := 0; i < len(args)-1; i++ {
-		next, err := traverse(v, args[i])
+		next, err := reflection.Traverse(v, args[i])
 		if err != nil {
-			if errors.Is(err, ErrKeyMissing) || errors.Is(err, ErrNilPointer) {
+			if errors.Is(err, reflection.ErrKeyMissing) || errors.Is(err, reflection.ErrNilPointer) {
 				return item, nil
 			}
 
@@ -247,8 +246,8 @@ func Unset(item any, args ...any) (any, error) {
 
 	var err error
 
-	if v, err = indirect(v); err != nil {
-		if errors.Is(err, ErrNilPointer) {
+	if v, err = reflection.IndirectValue(v); err != nil {
+		if errors.Is(err, reflection.ErrNilPointer) {
 			return item, nil
 		}
 
@@ -267,7 +266,7 @@ func Unset(item any, args ...any) (any, error) {
 			return item, nil
 		}
 
-		kv, err := resolveKey(v, key)
+		kv, err := reflection.ResolveKey(v, key)
 		if err != nil {
 			return item, fmt.Errorf("final key: %w", err)
 		}
@@ -275,7 +274,19 @@ func Unset(item any, args ...any) (any, error) {
 		v.SetMapIndex(kv, reflect.Value{})
 
 		return item, nil
+	case reflect.Struct:
+		target, err := reflection.ResolveField(v, key)
+		if err != nil {
+			return item, fmt.Errorf("final key: %w", err)
+		}
 
+		if !target.CanSet() {
+			return item, fmt.Errorf("target struct field is not settable (struct is unaddressable)")
+		}
+
+		target.Set(reflect.Zero(target.Type()))
+
+		return item, nil
 	case reflect.Slice, reflect.Array:
 		return item, fmt.Errorf("cannot unset elements from slice or array, use Set with zero value instead")
 	}
@@ -291,10 +302,11 @@ func IsSet(item any, args ...any) bool {
 	}
 
 	for _, arg := range args {
-		next, err := traverse(v, arg)
+		next, err := reflection.Traverse(v, arg)
 		if err != nil {
 			return false
 		}
+
 		v = next
 	}
 
@@ -352,117 +364,4 @@ func render(t *template.Template, name string, data ...any) (string, error) {
 	}
 
 	return buf.String(), nil
-}
-
-func indirect(v reflect.Value) (reflect.Value, error) {
-	for {
-		switch v.Kind() {
-		case reflect.Pointer, reflect.Interface:
-			if v.IsNil() {
-				return reflect.Value{}, ErrNilPointer
-			}
-
-			v = v.Elem()
-		default:
-			return v, nil
-		}
-	}
-}
-
-func toIndex(i any) (int64, error) {
-	iv := reflect.ValueOf(i)
-
-	if !iv.IsValid() {
-		return 0, ErrInvalidIndex
-	}
-
-	switch iv.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return iv.Int(), nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return int64(iv.Uint()), nil
-	}
-
-	return 0, ErrInvalidIndex
-}
-
-func resolveKey(m reflect.Value, key any) (reflect.Value, error) {
-	kv := reflect.ValueOf(key)
-
-	if !kv.IsValid() {
-		kv = reflect.Zero(m.Type().Key())
-	}
-
-	if !kv.Type().ConvertibleTo(m.Type().Key()) {
-		return reflect.Value{}, ErrTypeMismatch
-	}
-
-	return kv.Convert(m.Type().Key()), nil
-}
-
-func extractKey(item any, key any) any {
-	rv, err := indirect(reflect.ValueOf(item))
-	if err != nil || !rv.IsValid() {
-		return nil
-	}
-
-	switch rv.Kind() {
-	case reflect.Map:
-		kv, err := resolveKey(rv, key)
-		if err != nil {
-			return nil
-		}
-
-		if v := rv.MapIndex(kv); v.IsValid() {
-			return v.Interface()
-		}
-	case reflect.Struct:
-		if ks, ok := key.(string); ok {
-			if field := rv.FieldByName(ks); field.IsValid() {
-				return field.Interface()
-			}
-		}
-	}
-
-	return nil
-}
-
-func traverse(v reflect.Value, key any) (reflect.Value, error) {
-	v, err := indirect(v)
-	if err != nil {
-		return reflect.Value{}, err
-	}
-
-	if !v.IsValid() {
-		return reflect.Value{}, ErrInvalidIndex
-	}
-
-	switch v.Kind() {
-	case reflect.Array, reflect.Slice, reflect.String:
-		idx, err := toIndex(key)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-
-		if idx < 0 || int(idx) >= v.Len() {
-			return reflect.Value{}, ErrOutOfRange
-		}
-
-		return v.Index(int(idx)), nil
-	case reflect.Map:
-		kv, err := resolveKey(v, key)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-
-		val := v.MapIndex(kv)
-
-		if !val.IsValid() {
-			return reflect.Value{}, ErrKeyMissing
-		}
-
-		return val, nil
-	}
-
-	return reflect.Value{}, fmt.Errorf("cannot index into type %v", v.Kind())
 }
