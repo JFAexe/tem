@@ -2,7 +2,6 @@ package functions
 
 import (
 	"cmp"
-	"math/rand/v2"
 	"reflect"
 	"slices"
 	"strings"
@@ -70,14 +69,6 @@ func (*List) Reverse(items any) []any {
 	out := convert.ToAnySlice(items)
 
 	slices.Reverse(out)
-
-	return out
-}
-
-func (*List) Shuffle(items any) []any {
-	out := convert.ToAnySlice(items)
-
-	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 
 	return out
 }

@@ -21,6 +21,8 @@ var (
 	ErrRangeTooLarge       = errors.New("range is too large")
 )
 
+var one = big.NewInt(1)
+
 type Random struct {
 	runes *Rune
 }
@@ -66,6 +68,21 @@ func (*Random) PickFrom(value any) (any, error) {
 	}
 
 	return values[convert.Clamp(idx, 0, count-1)], nil
+}
+
+func (*Random) Shuffle(items any) ([]any, error) {
+	out := convert.ToAnySlice(items)
+
+	for i := len(out) - 1; i > 0; i-- {
+		j, err := randInt64(int64(i+1), false)
+		if err != nil {
+			return nil, err
+		}
+
+		out[i], out[j] = out[j], out[i]
+	}
+
+	return out, nil
 }
 
 func (*Random) Int(args ...any) (int64, error) {
@@ -238,21 +255,14 @@ func randFloat64Range(args []float64, inclusive bool) (float64, error) {
 }
 
 func randInt64(n int64, inclusive bool) (int64, error) {
-	switch {
-	case n < 0:
-		return 0, ErrUpperNegativeOrZero
-	case n == 0:
-		if inclusive {
-			return 0, nil
-		}
-
+	if n < 0 || (n == 0 && !inclusive) {
 		return 0, ErrUpperNegativeOrZero
 	}
 
 	upper := big.NewInt(int64(n))
 
 	if inclusive {
-		upper.Add(upper, big.NewInt(1))
+		upper.Add(upper, one)
 	}
 
 	value, err := rand.Int(rand.Reader, upper)
@@ -264,10 +274,10 @@ func randInt64(n int64, inclusive bool) (int64, error) {
 }
 
 func randFloat64(inclusive bool) (float64, error) {
-	upper := new(big.Int).Lsh(big.NewInt(1), 53)
+	upper := new(big.Int).Lsh(one, 53)
 
 	if inclusive {
-		upper.Add(upper, big.NewInt(1))
+		upper.Add(upper, one)
 	}
 
 	value, err := rand.Int(rand.Reader, upper)
