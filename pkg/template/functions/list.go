@@ -2,6 +2,7 @@ package functions
 
 import (
 	"cmp"
+	"math/rand/v2"
 	"reflect"
 	"slices"
 	"strings"
@@ -21,12 +22,12 @@ func (*List) New(values ...any) []any {
 	return values
 }
 
-func (*List) First(l any) any {
-	if v, ok := l.([]any); ok && len(v) > 0 {
+func (*List) First(items any) any {
+	if v, ok := items.([]any); ok && len(v) > 0 {
 		return v[0]
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(l))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(items))
 	if err != nil || !rv.IsValid() {
 		return nil
 	}
@@ -38,12 +39,12 @@ func (*List) First(l any) any {
 	return nil
 }
 
-func (*List) Last(l any) any {
-	if v, ok := l.([]any); ok && len(v) > 0 {
+func (*List) Last(items any) any {
+	if v, ok := items.([]any); ok && len(v) > 0 {
 		return v[len(v)-1]
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(l))
+	rv, err := reflection.IndirectValue(reflect.ValueOf(items))
 	if err != nil || !rv.IsValid() {
 		return nil
 	}
@@ -59,38 +60,114 @@ func (*List) Concat(values ...any) []any {
 	return listConcat(values...)
 }
 
-func (*List) Reverse(l any) []any {
-	out := convert.ToAnySlice(l)
+func (*List) Compact(items any) []any {
+	return slices.CompactFunc(convert.ToAnySlice(items), func(a, b any) bool {
+		return reflection.CompareValues(reflect.ValueOf(a), reflect.ValueOf(b))
+	})
+}
+
+func (*List) Reverse(items any) []any {
+	out := convert.ToAnySlice(items)
 
 	slices.Reverse(out)
 
 	return out
 }
 
-func (*List) Sort(items any) ([]any, error) {
-	s := convert.ToAnySlice(items)
+func (*List) Shuffle(items any) []any {
+	out := convert.ToAnySlice(items)
 
-	if len(s) <= 1 {
-		return s, nil
+	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+
+	return out
+}
+
+func (*List) Sort(items any) ([]any, error) {
+	out := convert.ToAnySlice(items)
+
+	if len(out) <= 1 {
+		return out, nil
 	}
 
-	slices.SortStableFunc(s, compareAny)
+	slices.SortStableFunc(out, compareAny)
 
-	return s, nil
+	return out, nil
 }
 
 func (*List) SortBy(key, items any) ([]any, error) {
-	s := convert.ToAnySlice(items)
+	out := convert.ToAnySlice(items)
 
-	if len(s) <= 1 {
-		return s, nil
+	if len(out) <= 1 {
+		return out, nil
 	}
 
-	slices.SortStableFunc(s, func(a, b any) int {
+	slices.SortStableFunc(out, func(a, b any) int {
 		return compareAny(reflection.ExtractKey(a, key), reflection.ExtractKey(b, key))
 	})
 
-	return s, nil
+	return out, nil
+}
+
+func (*List) Unique(items any) []any {
+	s := convert.ToAnySlice(items)
+
+	if len(s) <= 1 {
+		return s
+	}
+
+	out := make([]any, 0, len(s))
+
+	for _, item := range s {
+		var exists bool
+
+		for _, u := range out {
+			if reflection.CompareValues(reflect.ValueOf(item), reflect.ValueOf(u)) {
+				exists = true
+
+				break
+			}
+		}
+
+		if !exists {
+			out = append(out, item)
+		}
+	}
+
+	return out
+}
+
+func (*List) UniqueBy(key, items any) []any {
+	s := convert.ToAnySlice(items)
+
+	if len(s) <= 1 {
+		return s
+	}
+
+	out := make([]any, 0, len(s))
+
+	for _, item := range s {
+		var (
+			exists bool
+
+			ik = reflect.ValueOf(reflection.ExtractKey(item, key))
+		)
+
+		for _, u := range out {
+			uk := reflect.ValueOf(reflection.ExtractKey(u, key))
+
+			if reflection.CompareValues(ik, uk) {
+				exists = true
+
+				break
+			}
+		}
+
+		if !exists {
+			out = append(out, item)
+		}
+	}
+
+	return out
 }
 
 func listConcat(values ...any) []any {
