@@ -1,7 +1,6 @@
 package functions
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -10,8 +9,6 @@ import (
 	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/JFAexe/tem/pkg/reflection"
 )
-
-var ErrNilArgument = errors.New("nil arguments are not allowed")
 
 type Math struct{}
 
@@ -38,8 +35,8 @@ func (*Math) Mul(values ...any) float64 {
 	)
 
 	for _, v := range values {
-		for _, num := range convert.ToAnySlice(v) {
-			res *= convert.ToFloat64(num)
+		for _, num := range convert.ToFloat64Slice(v) {
+			res *= num
 
 			count++
 		}
@@ -53,13 +50,30 @@ func (*Math) Mul(values ...any) float64 {
 }
 
 func (*Math) Div(y, x any) float64 {
-	xf := convert.ToFloat64(y)
+	yf := convert.ToFloat64(y)
 
-	if xf == 0 {
+	if yf == 0 {
 		return 0
 	}
 
-	return convert.ToFloat64(y) / xf
+	return convert.ToFloat64(x) / yf
+}
+
+func (*Math) Pow(y, x any) float64 {
+	var (
+		xf = convert.ToFloat64(x)
+		yf = convert.ToFloat64(y)
+	)
+
+	if math.IsNaN(xf) || math.IsInf(yf, 0) {
+		return 0
+	}
+
+	if yf == 0 {
+		return 1
+	}
+
+	return math.Pow(xf, yf)
 }
 
 func (*Math) Mod(y, x any) float64 {
@@ -164,13 +178,9 @@ func (*Math) Max(values ...any) float64 {
 }
 
 func (*Math) Clamp(minimum, maximum, value any) (result float64, err error) {
-	if minimum == nil || maximum == nil || value == nil {
-		return 0, ErrNilArgument
-	}
-
 	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
 	if err != nil || !rv.IsValid() {
-		return 0, ErrNilArgument
+		return 0, err
 	}
 
 	if !rv.CanInt() && !rv.CanFloat() {
