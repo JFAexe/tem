@@ -6,10 +6,21 @@ import (
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
-type Time struct{}
+type Time struct {
+	cache map[string]*time.Location
+}
 
 func (*Time) Now() time.Time {
 	return time.Now()
+}
+
+func (f *Time) In(zone, value any) (time.Time, error) {
+	loc, err := f.cached(convert.ToString(zone))
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return convert.ToTime(value).In(loc), nil
 }
 
 func (*Time) Offset(offset, value any) time.Time {
@@ -82,4 +93,23 @@ func (*Time) Since(value any) time.Duration {
 
 func (*Time) Until(value any) time.Duration {
 	return time.Until(convert.ToTime(value))
+}
+
+func (f *Time) cached(zone string) (*time.Location, error) {
+	if f.cache == nil {
+		f.cache = make(map[string]*time.Location)
+	}
+
+	if exp, ok := f.cache[zone]; ok {
+		return exp, nil
+	}
+
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		return nil, err
+	}
+
+	f.cache[zone] = loc
+
+	return loc, nil
 }

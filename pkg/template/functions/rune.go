@@ -16,53 +16,59 @@ type Rune struct {
 	regexCache map[string][]rune
 }
 
-func NewRune() *Rune {
-	return &Rune{
-		rangeCache: make(map[runeRange][]rune),
-		regexCache: make(map[string][]rune),
-	}
-}
-
 func (f *Rune) RangeSet(lower, upper any) []rune {
 	var (
-		lr = convert.ToRune(lower)
-		ur = convert.ToRune(upper)
-		lo = min(lr, ur)
-		hi = max(lr, ur)
-
-		key = runeRange{lo, hi}
+		lr     = convert.ToRune(lower)
+		ur     = convert.ToRune(upper)
+		lo     = min(lr, ur)
+		hi     = max(lr, ur)
+		set, _ = f.cached(runeRange{lo, hi})
 	)
-
-	if set, ok := f.rangeCache[key]; ok {
-		return set
-	}
-
-	set := expandRange(lo, hi)
-
-	f.rangeCache[key] = set
 
 	return set
 }
 
 func (f *Rune) RegexSet(pattern any) ([]rune, error) {
-	pat := strings.TrimSpace(convert.ToString(pattern))
+	return f.cached(strings.TrimSpace(convert.ToString(pattern)))
+}
 
-	if set, ok := f.regexCache[pat]; ok {
-		return set, nil
+func (f *Rune) cached(key any) (set []rune, err error) {
+	var ok bool
+
+	switch k := key.(type) {
+	case runeRange:
+		if f.rangeCache == nil {
+			f.rangeCache = make(map[runeRange][]rune)
+		}
+
+		if set, ok = f.rangeCache[k]; ok {
+			return set, nil
+		}
+
+		set = expandRange(k.lo, k.hi)
+
+		f.rangeCache[k] = set
+	case string:
+		if f.regexCache == nil {
+			f.regexCache = make(map[string][]rune)
+		}
+
+		if set, ok = f.regexCache[k]; ok {
+			return set, nil
+		}
+
+		if set = f.fromUnicode(k); set != nil {
+			f.regexCache[k] = set
+
+			return set, nil
+		}
+
+		if set, err = f.syntaxSet(k); err != nil {
+			return nil, err
+		}
+
+		f.regexCache[k] = set
 	}
-
-	if set := f.fromUnicode(pat); set != nil {
-		f.regexCache[pat] = set
-
-		return set, nil
-	}
-
-	set, err := f.syntaxSet(pat)
-	if err != nil {
-		return nil, err
-	}
-
-	f.regexCache[pat] = set
 
 	return set, nil
 }
@@ -130,6 +136,10 @@ func (f *Rune) fromUnicode(pattern string) []rune {
 }
 
 func expandRange(lo, hi rune) []rune {
+	if hi < lo {
+		lo, hi = hi, lo
+	}
+
 	runes := make([]rune, 0, int(hi-lo)+1)
 
 	for r := lo; r <= hi; r++ {

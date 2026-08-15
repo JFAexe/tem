@@ -33,46 +33,35 @@ func NamespaceVararg[T any](n T, fn func(T, []any) (any, error)) func(...any) (a
 
 func FuncMap(t *template.Template) template.FuncMap {
 	var (
-		regexFuncs    = NewRegex()
-		runeFuncs     = NewRune()
-		randomFuncs   = NewRandom(runeFuncs)
-		envFuncs      = new(Env)
-		filepathFuncs = new(Filepath)
-		pathFuncs     = new(Path)
-		stringFuncs   = new(String)
-		mathFuncs     = new(Math)
-		timeFuncs     = new(Time)
-		dataFuncs     = new(Data)
-		mapFuncs      = new(Map)
-		listFuncs     = new(List)
-		convertFuncs  = new(Convert)
+		runeFuncs   = new(Rune)
+		randomFuncs = NewRandom(runeFuncs)
 	)
 
 	return template.FuncMap{
-		"inline":   Inline(t),
-		"include":  Include(t),
+		"pwd":      os.Getwd,
+		"hostname": os.Hostname,
+		"ternary":  Ternary,
 		"default":  Default,
 		"indexOr":  IndexOr,
 		"set":      Set,
 		"unset":    Unset,
 		"isSet":    IsSet,
-		"ternary":  Ternary,
-		"pwd":      os.Getwd,
-		"hostname": os.Hostname,
+		"inline":   Inline(t),
+		"include":  Include(t),
 		"file":     File,
-		"to":       Namespace(convertFuncs),
-		"filepath": Namespace(filepathFuncs),
-		"path":     Namespace(pathFuncs),
-		"string":   Namespace(stringFuncs),
-		"regex":    Namespace(regexFuncs),
-		"math":     Namespace(mathFuncs),
-		"time":     Namespace(timeFuncs),
-		"data":     Namespace(dataFuncs),
-		"rune":     Namespace(runeFuncs),
+		"to":       Namespace(new(Convert)),
+		"data":     Namespace(new(Data)),
+		"env":      NamespaceVararg(new(Env), EnvVarargInit),
+		"filepath": Namespace(new(Filepath)),
+		"list":     NamespaceVararg(new(List), ListVarargInit),
+		"map":      NamespaceVararg(new(Map), MapVarargInit),
+		"math":     Namespace(new(Math)),
+		"path":     Namespace(new(Path)),
 		"random":   Namespace(randomFuncs),
-		"map":      NamespaceVararg(mapFuncs, MapVarargInit),
-		"list":     NamespaceVararg(listFuncs, ListVarargInit),
-		"env":      NamespaceVararg(envFuncs, EnvVarargInit),
+		"regex":    Namespace(new(Regex)),
+		"rune":     Namespace(runeFuncs),
+		"string":   Namespace(new(String)),
+		"time":     Namespace(new(Time)),
 	}
 }
 

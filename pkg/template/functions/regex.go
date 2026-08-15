@@ -11,12 +11,6 @@ type Regex struct {
 	cache map[string]*regexp.Regexp
 }
 
-func NewRegex() *Regex {
-	return &Regex{
-		cache: make(map[string]*regexp.Regexp),
-	}
-}
-
 func (*Regex) Escape(str any) string {
 	return regexp.QuoteMeta(convert.ToString(str))
 }
@@ -67,6 +61,10 @@ func (f *Regex) Split(regex, n, str any) ([]string, error) {
 }
 
 func (f *Regex) cached(regex string) (*regexp.Regexp, error) {
+	if f.cache == nil {
+		f.cache = make(map[string]*regexp.Regexp)
+	}
+
 	if exp, ok := f.cache[regex]; ok {
 		return exp, nil
 	}
