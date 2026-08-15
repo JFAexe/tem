@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 var expandOps = []string{
@@ -24,64 +25,96 @@ func RawExpand(value string, lookup LookupFunc) string {
 	}
 
 	var (
-		out   strings.Builder
-		runes = []rune(value)
+		out strings.Builder
+
+		n = len(value)
 	)
 
-	for i := 0; i < len(runes); i++ {
-		if runes[i] != '$' {
-			out.WriteRune(runes[i])
-			continue
-		}
+	out.Grow(n)
 
-		if i+1 < len(runes) && runes[i+1] == '$' {
-			out.WriteRune('$')
+	for i := 0; i < n; {
+		r, size := utf8.DecodeRuneInString(value[i:])
+		if r != '$' {
+			out.WriteString(value[i : i+size])
 
-			i++
+			i += size
 
 			continue
 		}
 
-		if i+1 < len(runes) && runes[i+1] == '{' {
-			j := i + 2
+		if i+1 >= n {
+			out.WriteByte('$')
 
-			for j < len(runes) && runes[j] != '}' {
-				j++
+			break
+		}
+
+		nr, ns := utf8.DecodeRuneInString(value[i+1:])
+
+		if nr == '$' {
+			out.WriteByte('$')
+
+			i += 1 + ns
+
+			continue
+		}
+
+		if nr == '{' {
+			var (
+				s = i + 1 + ns
+				j = s
+			)
+
+			for j < n {
+				rj, sj := utf8.DecodeRuneInString(value[j:])
+
+				if rj == '}' {
+					break
+				}
+
+				j += sj
 			}
 
-			if j == len(runes) {
-				out.WriteString(string(runes[i:]))
+			if j >= n {
+				out.WriteString(value[i:])
 
 				break
 			}
 
-			out.WriteString(expandBrace(string(runes[i+2:j]), lookup))
+			out.WriteString(expandBrace(value[s:j], lookup))
+
+			i = j + 1
+
+			continue
+		}
+
+		if isVarStart(nr) {
+			var (
+				s = i + 1
+				j = s + ns
+			)
+
+			for j < n {
+				rj, sj := utf8.DecodeRuneInString(value[j:])
+
+				if !isVarPart(rj) {
+					break
+				}
+
+				j += sj
+			}
+
+			v, _ := lookup(value[s:j])
+
+			out.WriteString(v)
 
 			i = j
 
 			continue
 		}
 
-		if i+1 < len(runes) && isVarStart(runes[i+1]) {
-			var (
-				start = i + 1
-				j     = start + 1
-			)
-
-			for j < len(runes) && isVarPart(runes[j]) {
-				j++
-			}
-
-			val, _ := lookup(string(runes[start:j]))
-
-			out.WriteString(val)
-
-			i = j - 1
-
-			continue
-		}
-
 		out.WriteByte('$')
+
+		i += size
 	}
 
 	return out.String()
@@ -96,9 +129,9 @@ func expandBrace(expr string, lookup LookupFunc) string {
 
 	for _, c := range expandOps {
 		if i := strings.Index(expr, c); i > 0 {
-			idx, op = i, c
-
-			break
+			if idx == -1 || i < idx {
+				idx, op = i, c
+			}
 		}
 	}
 
