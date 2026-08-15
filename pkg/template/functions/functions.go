@@ -46,6 +46,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"set":      Set,
 		"unset":    Unset,
 		"isSet":    IsSet,
+		"in":       In,
 		"inline":   Inline(t),
 		"include":  Include(t),
 		"file":     File,
@@ -73,12 +74,12 @@ func Ternary(truthy, falsy, condition any) any {
 	return falsy
 }
 
-func Default(val, def any) any {
-	if val == nil {
+func Default(value, def any) any {
+	if value == nil {
 		return def
 	}
 
-	v := reflect.ValueOf(val)
+	v := reflect.ValueOf(value)
 
 	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
 		if v.IsNil() {
@@ -92,7 +93,7 @@ func Default(val, def any) any {
 		return def
 	}
 
-	return val
+	return value
 }
 
 func IndexOr(item, def any, args ...any) any {
@@ -299,6 +300,47 @@ func IsSet(item any, args ...any) bool {
 	}
 
 	return true
+}
+
+func In(item, value any) bool {
+	if value == nil || item == nil {
+		return false
+	}
+
+	iv, err := reflection.IndirectValue(reflect.ValueOf(item))
+	if err != nil || !iv.IsValid() {
+		return false
+	}
+
+	tv, err := reflection.IndirectValue(reflect.ValueOf(value))
+	if err != nil || !tv.IsValid() {
+		return false
+	}
+
+	switch iv.Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := range iv.Len() {
+			if reflection.CompareValues(iv.Index(i), tv) {
+				return true
+			}
+		}
+	case reflect.Map:
+		iter := iv.MapRange()
+
+		for iter.Next() {
+			if reflection.CompareValues(iter.Value(), tv) {
+				return true
+			}
+		}
+	case reflect.Struct:
+		for _, field := range reflection.ExportedFields(iv) {
+			if reflection.CompareValues(field, tv) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func File(value any) (string, error) {
