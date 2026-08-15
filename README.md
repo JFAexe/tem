@@ -7,11 +7,11 @@
 ```shell
 echo '
 [[- $files := list.New -]]
-[[- range $f := filepath.Walk `**/[a-z]*.go` true -]]
-  [[- $files = $files | list.Concat ( map `path` $f.Path `data` ( $f.Path | file | to.Bytes ) ) -]]
+[[- range $f := filepath.Walk "pkg/**/*.go" true -]]
+  [[- $files = $files | list.Concat ( map "path" $f.RelPath "data" ( $f.Path | file | to.Bytes ) ) -]]
 [[- end -]]
 ---
-[[ $files | data.ToYAML -]]
+[[ $files | list.SortBy "path" | data.ToYAML ]]
 ' | tem
 ```
 
