@@ -461,7 +461,7 @@ func ToRuneSlice(value any) []rune {
 	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
 		out := make([]rune, 0, rv.Len())
 
-		for i := 0; i < rv.Len(); i++ {
+		for i := range rv.Len() {
 			e := rv.Index(i)
 
 			if !e.IsValid() {
@@ -526,11 +526,9 @@ func ToMap[K comparable, V any, M map[K]V](value any, kf ConvertKeyFunc[K], vf C
 	case reflect.Struct:
 		out := make(M, rv.NumField())
 
-		reflection.ForEachExportedField(rv, func(name string, field reflect.Value) bool {
+		for name, field := range reflection.ExportedFields(rv) {
 			out[kf(name)] = vf(field.Interface())
-
-			return true
-		})
+		}
 
 		return out
 	}

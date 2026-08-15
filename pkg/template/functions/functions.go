@@ -118,7 +118,7 @@ func IndexOr(item, def any, args ...any) any {
 	}
 
 	for _, arg := range args {
-		next, err := reflection.Traverse(v, arg)
+		next, err := reflection.Lookup(v, arg)
 		if err != nil {
 			return def
 		}
@@ -136,8 +136,8 @@ func Set(item, value any, args ...any) (any, error) {
 
 	v := reflect.ValueOf(item)
 
-	for i := 0; i < len(args)-1; i++ {
-		next, err := reflection.Traverse(v, args[i])
+	for i := range len(args) - 1 {
+		next, err := reflection.Lookup(v, args[i])
 		if err != nil {
 			if errors.Is(err, reflection.ErrKeyMissing) {
 				return item, fmt.Errorf("map key not found at step %d (cannot set nested value in nil map)", i)
@@ -230,8 +230,8 @@ func Unset(item any, args ...any) (any, error) {
 
 	v := reflect.ValueOf(item)
 
-	for i := 0; i < len(args)-1; i++ {
-		next, err := reflection.Traverse(v, args[i])
+	for i := range len(args) - 1 {
+		next, err := reflection.Lookup(v, args[i])
 		if err != nil {
 			if errors.Is(err, reflection.ErrKeyMissing) || errors.Is(err, reflection.ErrNilPointer) {
 				return item, nil
@@ -301,7 +301,7 @@ func IsSet(item any, args ...any) bool {
 	}
 
 	for _, arg := range args {
-		next, err := reflection.Traverse(v, arg)
+		next, err := reflection.Lookup(v, arg)
 		if err != nil {
 			return false
 		}

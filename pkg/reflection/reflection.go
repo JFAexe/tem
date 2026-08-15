@@ -3,6 +3,7 @@ package reflection
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"reflect"
 	"strings"
 )
@@ -36,7 +37,7 @@ func IndirectValue(v reflect.Value) (reflect.Value, error) {
 	}
 }
 
-func Traverse(v reflect.Value, key any) (reflect.Value, error) {
+func Lookup(v reflect.Value, key any) (reflect.Value, error) {
 	v, err := IndirectValue(v)
 	if err != nil {
 		return reflect.Value{}, err
@@ -94,6 +95,22 @@ func ConvertValue(v reflect.Value, target reflect.Type) (reflect.Value, error) {
 	return v.Convert(target), nil
 }
 
+func CompareValues(elem, target reflect.Value) bool {
+	if !elem.IsValid() || !target.IsValid() {
+		return elem.IsValid() == target.IsValid()
+	}
+
+	if elem, _ = IndirectValue(elem); elem.Type() == target.Type() {
+		return reflect.DeepEqual(elem.Interface(), target.Interface())
+	}
+
+	if elem.Type().ConvertibleTo(target.Type()) {
+		return reflect.DeepEqual(elem.Convert(target.Type()).Interface(), target.Interface())
+	}
+
+	return false
+}
+
 func ToIndex(i any) (int64, error) {
 	iv := reflect.ValueOf(i)
 
@@ -109,20 +126,6 @@ func ToIndex(i any) (int64, error) {
 	}
 
 	return 0, ErrInvalidIndex
-}
-
-func ResolveKey(m reflect.Value, key any) (reflect.Value, error) {
-	kv := reflect.ValueOf(key)
-
-	if !kv.IsValid() {
-		kv = reflect.Zero(m.Type().Key())
-	}
-
-	if !kv.Type().ConvertibleTo(m.Type().Key()) {
-		return reflect.Value{}, ErrTypeMismatch
-	}
-
-	return kv.Convert(m.Type().Key()), nil
 }
 
 func ExtractKey(item any, key any) any {
@@ -153,84 +156,86 @@ func ExtractKey(item any, key any) any {
 	return nil
 }
 
+func ResolveKey(m reflect.Value, key any) (reflect.Value, error) {
+	kv := reflect.ValueOf(key)
+
+	if !kv.IsValid() {
+		kv = reflect.Zero(m.Type().Key())
+	}
+
+	if !kv.Type().ConvertibleTo(m.Type().Key()) {
+		return reflect.Value{}, ErrTypeMismatch
+	}
+
+	return kv.Convert(m.Type().Key()), nil
+}
+
 func ResolveField(v reflect.Value, key any) (reflect.Value, error) {
 	ks, ok := key.(string)
 	if !ok {
 		return reflect.Value{}, ErrInvalidIndex
 	}
 
-	var (
-		value reflect.Value
-		found bool
-	)
-
-	ForEachExportedField(v, func(name string, field reflect.Value) bool {
+	for name, field := range ExportedFields(v) {
 		if name == ks {
-			value = field
-			found = true
-
-			return false
+			return field, nil
 		}
-
-		return true
-	})
-
-	if !found {
-		return reflect.Value{}, ErrKeyMissing
 	}
 
-	return value, nil
+	return reflect.Value{}, ErrKeyMissing
 }
 
-func ForEachExportedField(rv reflect.Value, fn func(name string, field reflect.Value) bool) {
-	if rv.Kind() != reflect.Struct {
-		return
-	}
-
-	typ := rv.Type()
-
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-
-		if !field.IsExported() {
-			continue
+func ExportedFields(rv reflect.Value) iter.Seq2[string, reflect.Value] {
+	return func(yield func(name string, field reflect.Value) bool) {
+		if rv.Kind() != reflect.Struct {
+			return
 		}
 
-		var (
-			name = field.Name
-			skip = false
-		)
+		typ := rv.Type()
 
-		for _, tag := range structTags {
-			val := field.Tag.Get(tag)
+		for i := range typ.NumField() {
+			field := typ.Field(i)
 
-			if val == "" {
+			if !field.IsExported() {
 				continue
 			}
 
-			if before, _, ok := strings.Cut(val, ","); ok {
-				val = before
+			var (
+				name = field.Name
+				skip = false
+			)
+
+			for _, tag := range structTags {
+				val := field.Tag.Get(tag)
+
+				if val == "" {
+					continue
+				}
+
+				if before, _, ok := strings.Cut(val, ","); ok {
+					val = before
+				}
+
+				if val == "-" {
+					skip = true
+
+					break
+				}
+
+				if val != "" {
+					name = val
+
+					break
+				}
 			}
 
-			if val == "-" {
-				skip = true
+			if skip {
+				continue
+			}
 
+			if !yield(name, rv.Field(i)) {
 				break
 			}
-
-			if val != "" {
-				name = val
-
-				break
-			}
-		}
-
-		if skip {
-			continue
-		}
-
-		if !fn(name, rv.Field(i)) {
-			break
 		}
 	}
 }
