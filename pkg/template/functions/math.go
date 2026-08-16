@@ -112,7 +112,7 @@ func (*Math) Round(value any, precision ...any) float64 {
 		p = convert.ToInt(precision[0])
 	}
 
-	pow := math.Pow(10, convert.SafeFloat64(p))
+	pow := math.Pow(10, convert.SafeIntToFloat64(p))
 
 	return math.Round(v*pow) / pow
 }
