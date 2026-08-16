@@ -51,12 +51,42 @@ func Clamp[T cmp.Ordered](v, mi, ma T) T {
 	return min(max(v, mi), ma)
 }
 
+func ClampFloat[F Float, I Int | Uint](v F, mi, ma I) I {
+	f := float64(v)
+
+	if f <= float64(mi) {
+		return mi
+	}
+
+	if f >= float64(ma) {
+		return ma
+	}
+
+	return I(math.Trunc(f))
+}
+
 func SafeInt[T Int](v T) int {
 	return int(Clamp(int64(v), math.MinInt, math.MaxInt))
 }
 
+func SafeInt8[T Int](v T) int8 {
+	return int8(Clamp(int64(v), math.MinInt8, math.MaxInt8))
+}
+
+func SafeInt16[T Int](v T) int16 {
+	return int16(Clamp(int64(v), math.MinInt16, math.MaxInt16))
+}
+
 func SafeInt32[T Int](v T) int32 {
 	return int32(Clamp(int64(v), math.MinInt32, math.MaxInt32))
+}
+
+func SafeIntToUint8[T Int](v T) uint8 {
+	return uint8(Clamp(int64(v), 0, math.MaxUint8))
+}
+
+func SafeIntToUint16[T Int](v T) uint16 {
+	return uint16(Clamp(int64(v), 0, math.MaxUint16))
 }
 
 func SafeIntToUint32[T Int](v T) uint32 {
@@ -64,7 +94,7 @@ func SafeIntToUint32[T Int](v T) uint32 {
 }
 
 func SafeIntToUint64[T Int](v T) uint64 {
-	return uint64(max(0, v))
+	return uint64(max(v, 0))
 }
 
 func SafeIntToFloat32[T Int](v T) float32 {
@@ -79,8 +109,24 @@ func SafeUint[T Uint](v T) uint {
 	return uint(Clamp(uint64(v), 0, math.MaxUint))
 }
 
+func SafeUint8[T Uint](v T) uint8 {
+	return uint8(Clamp(uint64(v), 0, math.MaxUint8))
+}
+
+func SafeUint16[T Uint](v T) uint16 {
+	return uint16(Clamp(uint64(v), 0, math.MaxUint16))
+}
+
 func SafeUint32[T Uint](v T) uint32 {
 	return uint32(Clamp(uint64(v), 0, math.MaxUint32))
+}
+
+func SafeUintToInt8[T Uint](v T) int8 {
+	return int8(Clamp(uint64(v), 0, math.MaxInt8))
+}
+
+func SafeUintToInt16[T Uint](v T) int16 {
+	return int16(Clamp(uint64(v), 0, math.MaxInt16))
 }
 
 func SafeUintToInt32[T Uint](v T) int32 {
@@ -100,13 +146,7 @@ func SafeUintToFloat64[T Uint](v T) float64 {
 }
 
 func SafeFloat32[T Float](v T) float32 {
-	f := float64(v)
-
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0
-	}
-
-	return float32(Clamp(f, -math.MaxFloat32, math.MaxFloat32))
+	return float32(Clamp(SafeFloat64(v), -math.MaxFloat32, math.MaxFloat32))
 }
 
 func SafeFloat64[T Float](v T) float64 {
@@ -119,76 +159,36 @@ func SafeFloat64[T Float](v T) float64 {
 	return f
 }
 
+func SafeFloatToInt8[T Float](v T) int8 {
+	return ClampFloat[float64, int8](SafeFloat64(v), math.MinInt8, math.MaxInt8)
+}
+
+func SafeFloatToInt16[T Float](v T) int16 {
+	return ClampFloat[float64, int16](SafeFloat64(v), math.MinInt16, math.MaxInt16)
+}
+
 func SafeFloatToInt32[T Float](v T) int32 {
-	f := float64(v)
-
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0
-	}
-
-	if f >= float64(math.MaxInt32) {
-		return math.MaxInt32
-	}
-
-	if f <= float64(math.MinInt32) {
-		return math.MinInt32
-	}
-
-	return int32(math.Trunc(f))
+	return ClampFloat[float64, int32](SafeFloat64(v), math.MinInt32, math.MaxInt32)
 }
 
 func SafeFloatToInt64[T Float](v T) int64 {
-	f := float64(v)
+	return ClampFloat[float64, int64](SafeFloat64(v), math.MinInt64, math.MaxInt64)
+}
 
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0
-	}
+func SafeFloatToUint8[T Float](v T) uint8 {
+	return ClampFloat[float64, uint8](SafeFloat64(v), 0, math.MaxUint8)
+}
 
-	if f >= float64(math.MaxInt64) {
-		return math.MaxInt64
-	}
-
-	if f <= float64(math.MinInt64) {
-		return math.MinInt64
-	}
-
-	return int64(math.Trunc(f))
+func SafeFloatToUint16[T Float](v T) uint16 {
+	return ClampFloat[float64, uint16](SafeFloat64(v), 0, math.MaxUint16)
 }
 
 func SafeFloatToUint32[T Float](v T) uint32 {
-	f := float64(v)
-
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0
-	}
-
-	if f >= float64(math.MaxUint32) {
-		return math.MaxUint32
-	}
-
-	if f <= 0 {
-		return 0
-	}
-
-	return uint32(math.Trunc(f))
+	return ClampFloat[float64, uint32](SafeFloat64(v), 0, math.MaxUint32)
 }
 
 func SafeFloatToUint64[T Float](v T) uint64 {
-	f := float64(v)
-
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0
-	}
-
-	if f >= float64(math.MaxUint64) {
-		return math.MaxUint64
-	}
-
-	if f <= 0 {
-		return 0
-	}
-
-	return uint64(math.Trunc(f))
+	return ClampFloat[float64, uint64](SafeFloat64(v), 0, math.MaxUint64)
 }
 
 func ToAny(v any) any {
@@ -305,6 +305,14 @@ func ToInt(value any) int {
 	return SafeInt(ToInt64(value))
 }
 
+func ToInt8(value any) int8 {
+	return SafeInt8(ToInt64(value))
+}
+
+func ToInt16(value any) int16 {
+	return SafeInt16(ToInt64(value))
+}
+
 func ToInt32(value any) int32 {
 	return SafeInt32(ToInt64(value))
 }
@@ -380,6 +388,14 @@ func ToInt64(value any) int64 {
 
 func ToUint(value any) uint {
 	return SafeUint(ToUint64(value))
+}
+
+func ToUint8(value any) uint8 {
+	return SafeUint8(ToUint64(value))
+}
+
+func ToUint16(value any) uint16 {
+	return SafeUint16(ToUint64(value))
 }
 
 func ToUint32(value any) uint32 {
@@ -732,6 +748,14 @@ func ToIntSlice(value any) []int {
 	return ToSlice(value, ToInt)
 }
 
+func ToInt8Slice(value any) []int8 {
+	return ToSlice(value, ToInt8)
+}
+
+func ToInt16Slice(value any) []int16 {
+	return ToSlice(value, ToInt16)
+}
+
 func ToInt32Slice(value any) []int32 {
 	return ToSlice(value, ToInt32)
 }
@@ -742,6 +766,14 @@ func ToInt64Slice(value any) []int64 {
 
 func ToUintSlice(value any) []uint {
 	return ToSlice(value, ToUint)
+}
+
+func ToUint8Slice(value any) []uint8 {
+	return ToSlice(value, ToUint8)
+}
+
+func ToUint16Slice(value any) []uint16 {
+	return ToSlice(value, ToUint16)
 }
 
 func ToUint32Slice(value any) []uint32 {
@@ -887,6 +919,14 @@ func ToIntMap(value any) map[string]int {
 	return ToMap(value, ToString, ToInt)
 }
 
+func ToInt8Map(value any) map[string]int8 {
+	return ToMap(value, ToString, ToInt8)
+}
+
+func ToInt16Map(value any) map[string]int16 {
+	return ToMap(value, ToString, ToInt16)
+}
+
 func ToInt32Map(value any) map[string]int32 {
 	return ToMap(value, ToString, ToInt32)
 }
@@ -897,6 +937,14 @@ func ToInt64Map(value any) map[string]int64 {
 
 func ToUintMap(value any) map[string]uint {
 	return ToMap(value, ToString, ToUint)
+}
+
+func ToUint8Map(value any) map[string]uint8 {
+	return ToMap(value, ToString, ToUint8)
+}
+
+func ToUint16Map(value any) map[string]uint16 {
+	return ToMap(value, ToString, ToUint16)
 }
 
 func ToUint32Map(value any) map[string]uint32 {
