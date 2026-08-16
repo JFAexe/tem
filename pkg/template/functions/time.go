@@ -1,10 +1,29 @@
 package functions
 
 import (
+	"strings"
 	"time"
 
 	"github.com/JFAexe/tem/pkg/convert"
 )
+
+var layouts = map[string]string{
+	"ansic":    time.ANSIC,
+	"unix":     time.UnixDate,
+	"ruby":     time.RubyDate,
+	"822":      time.RFC822,
+	"822z":     time.RFC822Z,
+	"850":      time.RFC850,
+	"1123":     time.RFC1123,
+	"1123z":    time.RFC1123Z,
+	"3339":     time.RFC3339,
+	"3339nano": time.RFC3339Nano,
+	"kitchen":  time.Kitchen,
+	"stamp":    time.Stamp,
+	"datetime": time.DateTime,
+	"date":     time.DateOnly,
+	"time":     time.TimeOnly,
+}
 
 type Time struct {
 	cache map[string]*time.Location
@@ -14,6 +33,10 @@ func (*Time) Now() time.Time {
 	return time.Now()
 }
 
+func (f *Time) Parse(layout, value any) (time.Time, error) {
+	return time.Parse(convert.ToString(value), convert.ToString(layout))
+}
+
 func (f *Time) In(zone, value any) (time.Time, error) {
 	loc, err := f.cached(convert.ToString(zone))
 	if err != nil {
@@ -21,6 +44,15 @@ func (f *Time) In(zone, value any) (time.Time, error) {
 	}
 
 	return convert.ToTime(value).In(loc), nil
+}
+
+func (f *Time) ParseIn(layout, zone, value any) (time.Time, error) {
+	loc, err := f.cached(convert.ToString(zone))
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return time.ParseInLocation(convert.ToString(value), convert.ToString(layout), loc)
 }
 
 func (*Time) Offset(offset, value any) time.Time {
@@ -93,6 +125,14 @@ func (*Time) Since(value any) time.Duration {
 
 func (*Time) Until(value any) time.Duration {
 	return time.Until(convert.ToTime(value))
+}
+
+func (*Time) Layout(value any) string {
+	if layout, ok := layouts[strings.ToLower(convert.ToString(value))]; ok {
+		return layout
+	}
+
+	return time.RFC3339
 }
 
 func (f *Time) cached(zone string) (*time.Location, error) {
