@@ -38,7 +38,7 @@ func (*Env) Set(key, value any) (bool, error) {
 }
 
 func (*Env) BatchSet(m any) (bool, error) {
-	err := env.BatchSet(convert.ToStringMap(m))
+	err := env.BatchSet(convert.ToStringStringMap(m))
 
 	return err == nil, err
 }

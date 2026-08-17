@@ -77,29 +77,29 @@ func (*Convert) Bytes(value any) []byte {
 }
 
 func (*Convert) Map(value any) map[string]any {
-	return convert.ToAnyMap(value)
+	return convert.ToStringAnyMap(value)
 }
 
 func (*Convert) BoolMap(value any) map[string]bool {
-	return convert.ToBoolMap(value)
+	return convert.ToStringBoolMap(value)
 }
 
 func (*Convert) StringMap(value any) map[string]string {
-	return convert.ToStringMap(value)
+	return convert.ToStringStringMap(value)
 }
 
 func (*Convert) IntMap(value any) map[string]int64 {
-	return convert.ToInt64Map(value)
+	return convert.ToStringInt64Map(value)
 }
 
 func (*Convert) FloatMap(value any) map[string]float64 {
-	return convert.ToFloat64Map(value)
+	return convert.ToStringFloat64Map(value)
 }
 
 func (*Convert) DurationMap(value any) map[string]time.Duration {
-	return convert.ToDurationMap(value)
+	return convert.ToStringDurationMap(value)
 }
 
 func (*Convert) TimeMap(value any) map[string]time.Time {
-	return convert.ToTimeMap(value)
+	return convert.ToStringTimeMap(value)
 }

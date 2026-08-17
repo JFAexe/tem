@@ -16,7 +16,7 @@ func MapVarargInit(n *Map, args []any) (any, error) {
 }
 
 func (*Map) New(kv ...any) (map[string]any, error) {
-	out := make(map[string]any)
+	out := make(map[string]any, len(kv)/2)
 
 	if len(kv)%2 != 0 {
 		return out, fmt.Errorf("amount of arguments for key-values should be even, got %d", len(kv))
@@ -54,8 +54,8 @@ func (*Map) Pick(m any, keys ...any) map[string]any {
 		return out
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
-	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
+	rv := reflection.IndirectValue(reflect.ValueOf(m))
+	if !rv.IsValid() || rv.Kind() != reflect.Map {
 		return out
 	}
 
@@ -92,14 +92,17 @@ func (*Map) Omit(m any, keys ...any) map[string]any {
 		return out
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
-	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
+	rv := reflection.IndirectValue(reflect.ValueOf(m))
+	if !rv.IsValid() || rv.Kind() != reflect.Map {
 		return make(map[string]any)
 	}
 
-	out := make(map[string]any, rv.Len())
+	var (
+		out  = make(map[string]any, rv.Len())
+		iter = rv.MapRange()
+	)
 
-	for iter := rv.MapRange(); iter.Next(); {
+	for iter.Next() {
 		ks := convert.ToString(iter.Key().Interface())
 
 		if _, ok := set[ks]; !ok {
@@ -121,8 +124,8 @@ func (*Map) Keys(m any) []any {
 		return out
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
-	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
+	rv := reflection.IndirectValue(reflect.ValueOf(m))
+	if !rv.IsValid() || rv.Kind() != reflect.Map {
 		return make([]any, 0)
 	}
 
@@ -149,9 +152,9 @@ func (*Map) Values(m any) []any {
 		return out
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(m))
-	if err != nil || !rv.IsValid() || rv.Kind() != reflect.Map {
-		return []any{}
+	rv := reflection.IndirectValue(reflect.ValueOf(m))
+	if !rv.IsValid() || rv.Kind() != reflect.Map {
+		return make([]any, 0)
 	}
 
 	var (

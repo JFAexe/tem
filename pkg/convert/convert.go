@@ -1,22 +1,15 @@
 package convert
 
 import (
-	"cmp"
 	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
-	"slices"
 	"strconv"
 	"time"
 	"unicode/utf8"
 
 	"github.com/JFAexe/tem/pkg/reflection"
-)
-
-const (
-	Float32ExactIntMax = 1 << 24
-	Float64ExactIntMax = 1 << 53
 )
 
 var timeLayouts = []string{
@@ -35,162 +28,6 @@ type (
 	ConvertKeyFunc[K comparable] func(any) K
 )
 
-type Int interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64
-}
-
-type Uint interface {
-	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
-}
-
-type Float interface {
-	~float32 | ~float64
-}
-
-func Clamp[T cmp.Ordered](v, mi, ma T) T {
-	return min(max(v, mi), ma)
-}
-
-func ClampFloat[F Float, I Int | Uint](v F, mi, ma I) I {
-	f := float64(v)
-
-	if f <= float64(mi) {
-		return mi
-	}
-
-	if f >= float64(ma) {
-		return ma
-	}
-
-	return I(math.Trunc(f))
-}
-
-func SafeInt[T Int](v T) int {
-	return int(Clamp(int64(v), math.MinInt, math.MaxInt))
-}
-
-func SafeInt8[T Int](v T) int8 {
-	return int8(Clamp(int64(v), math.MinInt8, math.MaxInt8))
-}
-
-func SafeInt16[T Int](v T) int16 {
-	return int16(Clamp(int64(v), math.MinInt16, math.MaxInt16))
-}
-
-func SafeInt32[T Int](v T) int32 {
-	return int32(Clamp(int64(v), math.MinInt32, math.MaxInt32))
-}
-
-func SafeIntToUint8[T Int](v T) uint8 {
-	return uint8(Clamp(int64(v), 0, math.MaxUint8))
-}
-
-func SafeIntToUint16[T Int](v T) uint16 {
-	return uint16(Clamp(int64(v), 0, math.MaxUint16))
-}
-
-func SafeIntToUint32[T Int](v T) uint32 {
-	return uint32(Clamp(int64(v), 0, math.MaxUint32))
-}
-
-func SafeIntToUint64[T Int](v T) uint64 {
-	return uint64(max(v, 0))
-}
-
-func SafeIntToFloat32[T Int](v T) float32 {
-	return float32(Clamp(int64(v), -Float32ExactIntMax, Float32ExactIntMax))
-}
-
-func SafeIntToFloat64[T Int](v T) float64 {
-	return float64(Clamp(int64(v), -Float64ExactIntMax, Float64ExactIntMax))
-}
-
-func SafeUint[T Uint](v T) uint {
-	return uint(Clamp(uint64(v), 0, math.MaxUint))
-}
-
-func SafeUint8[T Uint](v T) uint8 {
-	return uint8(Clamp(uint64(v), 0, math.MaxUint8))
-}
-
-func SafeUint16[T Uint](v T) uint16 {
-	return uint16(Clamp(uint64(v), 0, math.MaxUint16))
-}
-
-func SafeUint32[T Uint](v T) uint32 {
-	return uint32(Clamp(uint64(v), 0, math.MaxUint32))
-}
-
-func SafeUintToInt8[T Uint](v T) int8 {
-	return int8(Clamp(uint64(v), 0, math.MaxInt8))
-}
-
-func SafeUintToInt16[T Uint](v T) int16 {
-	return int16(Clamp(uint64(v), 0, math.MaxInt16))
-}
-
-func SafeUintToInt32[T Uint](v T) int32 {
-	return int32(Clamp(uint64(v), 0, math.MaxInt32))
-}
-
-func SafeUintToInt64[T Uint](v T) int64 {
-	return int64(Clamp(uint64(v), 0, math.MaxInt64))
-}
-
-func SafeUintToFloat32[T Uint](v T) float32 {
-	return float32(Clamp(uint64(v), 0, Float32ExactIntMax))
-}
-
-func SafeUintToFloat64[T Uint](v T) float64 {
-	return float64(Clamp(uint64(v), 0, Float64ExactIntMax))
-}
-
-func SafeFloat32[T Float](v T) float32 {
-	return float32(Clamp(SafeFloat64(v), -math.MaxFloat32, math.MaxFloat32))
-}
-
-func SafeFloat64[T Float](v T) float64 {
-	f := float64(v)
-
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0
-	}
-
-	return f
-}
-
-func SafeFloatToInt8[T Float](v T) int8 {
-	return ClampFloat[float64, int8](SafeFloat64(v), math.MinInt8, math.MaxInt8)
-}
-
-func SafeFloatToInt16[T Float](v T) int16 {
-	return ClampFloat[float64, int16](SafeFloat64(v), math.MinInt16, math.MaxInt16)
-}
-
-func SafeFloatToInt32[T Float](v T) int32 {
-	return ClampFloat[float64, int32](SafeFloat64(v), math.MinInt32, math.MaxInt32)
-}
-
-func SafeFloatToInt64[T Float](v T) int64 {
-	return ClampFloat[float64, int64](SafeFloat64(v), math.MinInt64, math.MaxInt64)
-}
-
-func SafeFloatToUint8[T Float](v T) uint8 {
-	return ClampFloat[float64, uint8](SafeFloat64(v), 0, math.MaxUint8)
-}
-
-func SafeFloatToUint16[T Float](v T) uint16 {
-	return ClampFloat[float64, uint16](SafeFloat64(v), 0, math.MaxUint16)
-}
-
-func SafeFloatToUint32[T Float](v T) uint32 {
-	return ClampFloat[float64, uint32](SafeFloat64(v), 0, math.MaxUint32)
-}
-
-func SafeFloatToUint64[T Float](v T) uint64 {
-	return ClampFloat[float64, uint64](SafeFloat64(v), 0, math.MaxUint64)
-}
-
 func ToAny(v any) any {
 	return v
 }
@@ -200,12 +37,51 @@ func ToBool(value any) bool {
 		return false
 	}
 
-	if v, ok := value.(bool); ok {
+	switch v := value.(type) {
+	case bool:
 		return v
+	case int:
+		return v != 0
+	case int8:
+		return v != 0
+	case int16:
+		return v != 0
+	case int32:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint8:
+		return v != 0
+	case uint16:
+		return v != 0
+	case uint32:
+		return v != 0
+	case uint64:
+		return v != 0
+	case float32:
+		return v != 0
+	case float64:
+		return v != 0
+	case string:
+		return boolFromString(v)
+	case []byte:
+		return boolFromString(string(v))
+	case []rune:
+		return boolFromString(string(v))
+	case time.Duration:
+		return v != 0
+	case time.Time:
+		return !v.UTC().IsZero()
+	case error:
+		return boolFromString(v.Error())
+	case fmt.Stringer:
+		return boolFromString(v.String())
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return false
 	}
 
@@ -213,9 +89,7 @@ func ToBool(value any) bool {
 	case reflect.Bool:
 		return rv.Bool()
 	case reflect.String:
-		b, _ := strconv.ParseBool(rv.String())
-
-		return b
+		return boolFromString(rv.String())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return rv.Int() != 0
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -224,9 +98,7 @@ func ToBool(value any) bool {
 		return rv.Float() != 0
 	}
 
-	b, _ := strconv.ParseBool(ToString(value))
-
-	return b
+	return boolFromString(ToString(value))
 }
 
 func ToString(value any) string {
@@ -237,25 +109,52 @@ func ToString(value any) string {
 	switch v := value.(type) {
 	case string:
 		return v
+	case []byte:
+		return string(v)
+	case []rune:
+		return string(v)
+	case int:
+		return strconv.FormatInt(int64(v), 10)
+	case int8:
+		return strconv.FormatInt(int64(v), 10)
+	case int16:
+		return strconv.FormatInt(int64(v), 10)
+	case int32:
+		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case uint:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 32)
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(v)
+	case time.Time:
+		return v.UTC().Format(time.RFC3339)
 	case error:
 		return v.Error()
 	case fmt.Stringer:
 		return v.String()
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return ""
 	}
 
 	switch rv.Kind() {
-	case reflect.String, reflect.Slice, reflect.Array:
-		if target := reflect.TypeFor[string](); rv.Type().ConvertibleTo(target) {
-			return rv.Convert(target).String()
-		}
-	}
-
-	switch rv.Kind() {
+	case reflect.String:
+		return rv.String()
 	case reflect.Bool:
 		return strconv.FormatBool(rv.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -266,6 +165,10 @@ func ToString(value any) string {
 		return strconv.FormatFloat(rv.Float(), 'f', -1, 32)
 	case reflect.Float64:
 		return strconv.FormatFloat(rv.Float(), 'f', -1, 64)
+	case reflect.Slice, reflect.Array:
+		if rv.Type().ConvertibleTo(reflect.TypeFor[string]()) {
+			return rv.Convert(reflect.TypeFor[string]()).String()
+		}
 	}
 
 	return fmt.Sprint(value)
@@ -276,8 +179,55 @@ func ToRune(value any) rune {
 		return 0
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	switch v := value.(type) {
+	case int:
+		return SafeInt32(int64(v))
+	case int8:
+		return SafeInt32(int64(v))
+	case int16:
+		return SafeInt32(int64(v))
+	case int32:
+		return SafeInt32(int64(v))
+	case int64:
+		return SafeInt32(v)
+	case uint:
+		return SafeUintToInt32(uint64(v))
+	case uint8:
+		return SafeUintToInt32(uint64(v))
+	case uint16:
+		return SafeUintToInt32(uint64(v))
+	case uint32:
+		return SafeUintToInt32(uint64(v))
+	case uint64:
+		return SafeUintToInt32(v)
+	case float32:
+		return SafeFloatToInt32(v)
+	case float64:
+		return SafeFloatToInt32(v)
+	case string:
+		return runeFromString(v)
+	case []byte:
+		if len(v) > 0 {
+			r, _ := utf8.DecodeRune(v)
+
+			return r
+		}
+
+		return 0
+	case []rune:
+		if len(v) > 0 {
+			return v[0]
+		}
+
+		return 0
+	case error:
+		return ToRune(v.Error())
+	case fmt.Stringer:
+		return ToRune(v.String())
+	}
+
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return 0
 	}
 
@@ -289,13 +239,7 @@ func ToRune(value any) rune {
 	case reflect.Float32, reflect.Float64:
 		return SafeFloatToInt32(rv.Float())
 	case reflect.String:
-		if s := rv.String(); s != "" {
-			r, _ := utf8.DecodeRuneInString(s)
-
-			return r
-		}
-
-		return 0
+		return runeFromString(rv.String())
 	}
 
 	return ToRune(ToString(value))
@@ -323,6 +267,30 @@ func ToInt64(value any) int64 {
 	}
 
 	switch v := value.(type) {
+	case int:
+		return int64(v)
+	case int8:
+		return int64(v)
+	case int16:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case int64:
+		return v
+	case uint:
+		return SafeUintToInt64(v)
+	case uint8:
+		return SafeUintToInt64(v)
+	case uint16:
+		return SafeUintToInt64(v)
+	case uint32:
+		return SafeUintToInt64(v)
+	case uint64:
+		return SafeUintToInt64(v)
+	case float32:
+		return SafeFloatToInt64(v)
+	case float64:
+		return SafeFloatToInt64(v)
 	case bool:
 		if v {
 			return 1
@@ -338,25 +306,23 @@ func ToInt64(value any) int64 {
 			return SafeFloatToInt64(f)
 		}
 	case string:
-		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
-			return i
-		}
-
-		if u, err := strconv.ParseUint(v, 0, 64); err == nil {
-			return SafeUintToInt64(u)
-		}
-
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			return SafeFloatToInt64(f)
-		}
-	case time.Time:
-		return v.UTC().Unix()
+		return int64FromString(v)
+	case []byte:
+		return int64FromString(string(v))
+	case []rune:
+		return int64FromString(string(v))
 	case time.Duration:
 		return int64(v)
+	case time.Time:
+		return v.UTC().Unix()
+	case error:
+		return ToInt64(v.Error())
+	case fmt.Stringer:
+		return ToInt64(v.String())
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return 0
 	}
 
@@ -367,23 +333,11 @@ func ToInt64(value any) int64 {
 		return SafeUintToInt64(rv.Uint())
 	case reflect.Float32, reflect.Float64:
 		return SafeFloatToInt64(rv.Float())
+	case reflect.String:
+		return int64FromString(rv.String())
 	}
 
-	s := ToString(value)
-
-	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
-		return i
-	}
-
-	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
-		return SafeUintToInt64(u)
-	}
-
-	if f, err := strconv.ParseFloat(s, 64); err == nil {
-		return SafeFloatToInt64(f)
-	}
-
-	return 0
+	return int64FromString(ToString(value))
 }
 
 func ToUint(value any) uint {
@@ -408,6 +362,30 @@ func ToUint64(value any) uint64 {
 	}
 
 	switch v := value.(type) {
+	case int:
+		return SafeIntToUint64(v)
+	case int8:
+		return SafeIntToUint64(v)
+	case int16:
+		return SafeIntToUint64(v)
+	case int32:
+		return SafeIntToUint64(v)
+	case int64:
+		return SafeIntToUint64(v)
+	case uint:
+		return uint64(v)
+	case uint8:
+		return uint64(v)
+	case uint16:
+		return uint64(v)
+	case uint32:
+		return uint64(v)
+	case uint64:
+		return v
+	case float32:
+		return SafeFloatToUint64(v)
+	case float64:
+		return SafeFloatToUint64(v)
 	case bool:
 		if v {
 			return 1
@@ -423,25 +401,23 @@ func ToUint64(value any) uint64 {
 			return SafeFloatToUint64(f)
 		}
 	case string:
-		if u, err := strconv.ParseUint(v, 0, 64); err == nil {
-			return u
-		}
-
-		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
-			return SafeIntToUint64(i)
-		}
-
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			return SafeFloatToUint64(f)
-		}
-	case time.Time:
-		return SafeIntToUint64(v.UTC().Unix())
+		return uint64FromString(v)
+	case []byte:
+		return uint64FromString(string(v))
+	case []rune:
+		return uint64FromString(string(v))
 	case time.Duration:
 		return SafeIntToUint64(v)
+	case time.Time:
+		return SafeIntToUint64(v.UTC().Unix())
+	case error:
+		return ToUint64(v.Error())
+	case fmt.Stringer:
+		return ToUint64(v.String())
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return 0
 	}
 
@@ -452,23 +428,11 @@ func ToUint64(value any) uint64 {
 		return rv.Uint()
 	case reflect.Float32, reflect.Float64:
 		return SafeFloatToUint64(rv.Float())
+	case reflect.String:
+		return uint64FromString(rv.String())
 	}
 
-	s := ToString(value)
-
-	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
-		return SafeIntToUint64(i)
-	}
-
-	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
-		return u
-	}
-
-	if f, err := strconv.ParseFloat(s, 64); err == nil {
-		return SafeFloatToUint64(f)
-	}
-
-	return 0
+	return uint64FromString(ToString(value))
 }
 
 func ToFloat32(value any) float32 {
@@ -481,6 +445,30 @@ func ToFloat64(value any) float64 {
 	}
 
 	switch v := value.(type) {
+	case int:
+		return SafeIntToFloat64(v)
+	case int8:
+		return SafeIntToFloat64(v)
+	case int16:
+		return SafeIntToFloat64(v)
+	case int32:
+		return SafeIntToFloat64(v)
+	case int64:
+		return SafeIntToFloat64(v)
+	case uint:
+		return SafeUintToFloat64(v)
+	case uint8:
+		return SafeUintToFloat64(v)
+	case uint16:
+		return SafeUintToFloat64(v)
+	case uint32:
+		return SafeUintToFloat64(v)
+	case uint64:
+		return SafeUintToFloat64(v)
+	case float32:
+		return SafeFloat64(v)
+	case float64:
+		return SafeFloat64(v)
 	case bool:
 		if v {
 			return 1
@@ -492,25 +480,23 @@ func ToFloat64(value any) float64 {
 			return f
 		}
 	case string:
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			return f
-		}
-
-		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
-			return SafeIntToFloat64(i)
-		}
-
-		if u, err := strconv.ParseUint(v, 0, 64); err == nil {
-			return SafeUintToFloat64(u)
-		}
-	case time.Time:
-		return SafeIntToFloat64(v.UTC().Unix())
+		return float64FromString(v)
+	case []byte:
+		return float64FromString(string(v))
+	case []rune:
+		return float64FromString(string(v))
 	case time.Duration:
 		return SafeIntToFloat64(v)
+	case time.Time:
+		return SafeIntToFloat64(v.UTC().Unix())
+	case error:
+		return ToFloat64(v.Error())
+	case fmt.Stringer:
+		return ToFloat64(v.String())
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return 0
 	}
 
@@ -521,23 +507,11 @@ func ToFloat64(value any) float64 {
 		return SafeIntToFloat64(rv.Int())
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return SafeUintToFloat64(rv.Uint())
+	case reflect.String:
+		return float64FromString(rv.String())
 	}
 
-	s := ToString(value)
-
-	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
-		return SafeIntToFloat64(i)
-	}
-
-	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
-		return SafeUintToFloat64(u)
-	}
-
-	if f, err := strconv.ParseFloat(s, 64); err == nil {
-		return f
-	}
-
-	return 0
+	return float64FromString(ToString(value))
 }
 
 func ToDuration(value any) time.Duration {
@@ -550,6 +524,30 @@ func ToDuration(value any) time.Duration {
 		return v
 	case time.Time:
 		return v.UTC().Sub(time.Unix(0, 0).UTC())
+	case int:
+		return time.Duration(v)
+	case int8:
+		return time.Duration(v)
+	case int16:
+		return time.Duration(v)
+	case int32:
+		return time.Duration(v)
+	case int64:
+		return time.Duration(v)
+	case uint:
+		return time.Duration(SafeUintToInt64(v))
+	case uint8:
+		return time.Duration(SafeUintToInt64(v))
+	case uint16:
+		return time.Duration(SafeUintToInt64(v))
+	case uint32:
+		return time.Duration(SafeUintToInt64(v))
+	case uint64:
+		return time.Duration(SafeUintToInt64(v))
+	case float32:
+		return durationFromFloat(SafeFloat64(v))
+	case float64:
+		return durationFromFloat(SafeFloat64(v))
 	case bool:
 		if v {
 			return time.Second
@@ -562,30 +560,22 @@ func ToDuration(value any) time.Duration {
 		}
 
 		if f, err := v.Float64(); err == nil {
-			return time.Duration(SafeFloatToInt64(f * float64(time.Second)))
+			return durationFromFloat(f)
 		}
 	case string:
-		if d, err := time.ParseDuration(v); err == nil {
-			return d
-		}
-
-		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
-			return time.Duration(i)
-		}
-
-		if u, err := strconv.ParseUint(v, 0, 64); err == nil {
-			return time.Duration(SafeUintToInt64(u))
-		}
-
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			return time.Duration(SafeFloatToInt64(f * float64(time.Second)))
-		}
-
-		return 0
+		return durationFromString(v)
+	case []byte:
+		return durationFromString(string(v))
+	case []rune:
+		return durationFromString(string(v))
+	case error:
+		return ToDuration(v.Error())
+	case fmt.Stringer:
+		return ToDuration(v.String())
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return 0
 	}
 
@@ -595,10 +585,10 @@ func ToDuration(value any) time.Duration {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return time.Duration(SafeUintToInt64(rv.Uint()))
 	case reflect.Float32, reflect.Float64:
-		return time.Duration(SafeFloatToInt64(rv.Float() * float64(time.Second)))
+		return durationFromFloat(rv.Float())
 	}
 
-	return time.Duration(ToInt64(value))
+	return durationFromString(ToString(value))
 }
 
 func ToTime(value any) time.Time {
@@ -611,6 +601,30 @@ func ToTime(value any) time.Time {
 		return v.UTC()
 	case time.Duration:
 		return time.Unix(0, int64(v)).UTC()
+	case int:
+		return time.Unix(int64(v), 0).UTC()
+	case int8:
+		return time.Unix(int64(v), 0).UTC()
+	case int16:
+		return time.Unix(int64(v), 0).UTC()
+	case int32:
+		return time.Unix(int64(v), 0).UTC()
+	case int64:
+		return time.Unix(v, 0).UTC()
+	case uint:
+		return time.Unix(SafeUintToInt64(v), 0).UTC()
+	case uint8:
+		return time.Unix(SafeUintToInt64(v), 0).UTC()
+	case uint16:
+		return time.Unix(SafeUintToInt64(v), 0).UTC()
+	case uint32:
+		return time.Unix(SafeUintToInt64(v), 0).UTC()
+	case uint64:
+		return time.Unix(SafeUintToInt64(v), 0).UTC()
+	case float32:
+		return unixTimeFromFloat(SafeFloat64(v))
+	case float64:
+		return unixTimeFromFloat(SafeFloat64(v))
 	case bool:
 		if v {
 			return time.Unix(1, 0).UTC()
@@ -623,36 +637,22 @@ func ToTime(value any) time.Time {
 		}
 
 		if f, err := v.Float64(); err == nil {
-			s := SafeFloatToInt64(f)
-
-			return time.Unix(s, unixNsec(s, f)).UTC()
+			return unixTimeFromFloat(f)
 		}
 	case string:
-		for _, layout := range timeLayouts {
-			if t, err := time.Parse(layout, v); err == nil {
-				return t.UTC()
-			}
-		}
-
-		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
-			return time.Unix(i, 0).UTC()
-		}
-
-		if u, err := strconv.ParseUint(v, 0, 64); err == nil {
-			return time.Unix(SafeUintToInt64(u), 0).UTC()
-		}
-
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			s := SafeFloatToInt64(f)
-
-			return time.Unix(s, unixNsec(s, f)).UTC()
-		}
-
-		return time.Time{}
+		return timeFromString(v)
+	case []byte:
+		return timeFromString(string(v))
+	case []rune:
+		return timeFromString(string(v))
+	case error:
+		return ToTime(v.Error())
+	case fmt.Stringer:
+		return ToTime(v.String())
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return time.Time{}
 	}
 
@@ -662,313 +662,126 @@ func ToTime(value any) time.Time {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return time.Unix(SafeUintToInt64(rv.Uint()), 0).UTC()
 	case reflect.Float32, reflect.Float64:
-		var (
-			f = rv.Float()
-			s = SafeFloatToInt64(f)
-		)
-
-		return time.Unix(s, unixNsec(s, f)).UTC()
+		return unixTimeFromFloat(rv.Float())
 	}
 
-	return ToTime(ToString(value))
+	return timeFromString(ToString(value))
 }
 
-func ToSlice[T any, S []T](value any, fn ConvertFunc[T]) S {
-	if value == nil {
-		return make(S, 0)
+func boolFromString(s string) bool {
+	b, _ := strconv.ParseBool(s)
+
+	return b
+}
+
+func runeFromString(s string) rune {
+	if s != "" {
+		r, _ := utf8.DecodeRuneInString(s)
+
+		return r
 	}
 
-	if v, ok := value.(S); ok {
-		return slices.Clone(v)
+	return 0
+}
+
+func int64FromString(s string) int64 {
+	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
+		return i
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
-		return make(S, 0)
+	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
+		return SafeUintToInt64(u)
 	}
 
-	switch rv.Kind() {
-	case reflect.Slice, reflect.Array:
-		var (
-			typ = reflect.TypeFor[T]()
-			out = make(S, 0, rv.Len())
-		)
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return SafeFloatToInt64(f)
+	}
 
-		for i := range rv.Len() {
-			var (
-				v T
+	return 0
+}
 
-				e = rv.Index(i)
-			)
+func uint64FromString(s string) uint64 {
+	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
+		return u
+	}
 
-			if e.IsValid() && e.Type().ConvertibleTo(typ) {
-				v = e.Convert(typ).Interface().(T)
-			} else {
-				v = fn(e.Interface())
-			}
+	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
+		return SafeIntToUint64(i)
+	}
 
-			out = append(out, v)
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return SafeFloatToUint64(f)
+	}
+
+	return 0
+}
+
+func float64FromString(s string) float64 {
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return f
+	}
+
+	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
+		return SafeIntToFloat64(i)
+	}
+
+	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
+		return SafeUintToFloat64(u)
+	}
+
+	return 0
+}
+
+func durationFromFloat(f float64) time.Duration {
+	return time.Duration(SafeFloatToInt64(f * float64(time.Second)))
+}
+
+func durationFromString(s string) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+
+	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
+		return time.Duration(i)
+	}
+
+	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
+		return time.Duration(SafeUintToInt64(u))
+	}
+
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return durationFromFloat(f)
+	}
+
+	return 0
+}
+
+func timeFromString(s string) time.Time {
+	for _, layout := range timeLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.UTC()
 		}
-
-		return out
-	case reflect.Map:
-		out := make(S, 0, rv.Len())
-
-		for iter := rv.MapRange(); iter.Next(); {
-			out = append(out, fn(iter.Value().Interface()))
-		}
-
-		return out
-	case reflect.Struct:
-		out := make(S, 0, rv.NumField())
-
-		for _, field := range reflection.ExportedFields(rv) {
-			out = append(out, fn(field.Interface()))
-		}
-
-		return out
 	}
 
-	return S{fn(value)}
-}
-
-func ToAnySlice(value any) []any {
-	return ToSlice(value, ToAny)
-}
-
-func ToBoolSlice(value any) []bool {
-	return ToSlice(value, ToBool)
-}
-
-func ToStringSlice(value any) []string {
-	return ToSlice(value, ToString)
-}
-
-func ToIntSlice(value any) []int {
-	return ToSlice(value, ToInt)
-}
-
-func ToInt8Slice(value any) []int8 {
-	return ToSlice(value, ToInt8)
-}
-
-func ToInt16Slice(value any) []int16 {
-	return ToSlice(value, ToInt16)
-}
-
-func ToInt32Slice(value any) []int32 {
-	return ToSlice(value, ToInt32)
-}
-
-func ToInt64Slice(value any) []int64 {
-	return ToSlice(value, ToInt64)
-}
-
-func ToUintSlice(value any) []uint {
-	return ToSlice(value, ToUint)
-}
-
-func ToUint8Slice(value any) []uint8 {
-	return ToSlice(value, ToUint8)
-}
-
-func ToUint16Slice(value any) []uint16 {
-	return ToSlice(value, ToUint16)
-}
-
-func ToUint32Slice(value any) []uint32 {
-	return ToSlice(value, ToUint32)
-}
-
-func ToUint64Slice(value any) []uint64 {
-	return ToSlice(value, ToUint64)
-}
-
-func ToFloat32Slice(value any) []float32 {
-	return ToSlice(value, ToFloat32)
-}
-
-func ToFloat64Slice(value any) []float64 {
-	return ToSlice(value, ToFloat64)
-}
-
-func ToDurationSlice(value any) []time.Duration {
-	return ToSlice(value, ToDuration)
-}
-
-func ToTimeSlice(value any) []time.Time {
-	return ToSlice(value, ToTime)
-}
-
-func ToRuneSlice(value any) []rune {
-	switch v := value.(type) {
-	case nil:
-		return make([]rune, 0)
-	case []rune:
-		return slices.Clone(v)
-	case string:
-		return []rune(v)
+	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
+		return time.Unix(i, 0).UTC()
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
-		return make([]rune, 0)
+	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
+		return time.Unix(SafeUintToInt64(u), 0).UTC()
 	}
 
-	switch rv.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return []rune{SafeInt32(rv.Int())}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return []rune{SafeUintToInt32(rv.Uint())}
-	case reflect.Float32, reflect.Float64:
-		return []rune{SafeFloatToInt32(rv.Float())}
-	case reflect.Slice, reflect.Array:
-		out := make([]rune, 0, rv.Len())
-
-		for i := range rv.Len() {
-			e := rv.Index(i)
-
-			if !e.IsValid() {
-				continue
-			}
-
-			switch e.Kind() {
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				out = append(out, SafeInt32(e.Int()))
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				out = append(out, SafeUintToInt32(e.Uint()))
-			case reflect.Float32, reflect.Float64:
-				out = append(out, SafeFloatToInt32(e.Float()))
-			default:
-				out = append(out, ToRune(e.Interface()))
-			}
-		}
-
-		return out
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return unixTimeFromFloat(f)
 	}
 
-	return []rune(ToString(value))
+	return time.Time{}
 }
 
-func ToByteSlice(value any) []byte {
-	switch v := value.(type) {
-	case nil:
-		return make([]byte, 0)
-	case []byte:
-		return slices.Clone(v)
-	case string:
-		return []byte(v)
-	}
+func unixTimeFromFloat(f float64) time.Time {
+	s := SafeFloatToInt64(f)
 
-	return []byte(ToString(value))
-}
-
-func ToMap[K comparable, V any, M map[K]V](value any, kf ConvertKeyFunc[K], vf ConvertFunc[V]) M {
-	if value == nil {
-		return make(M)
-	}
-
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
-		return make(M)
-	}
-
-	switch rv.Kind() {
-	case reflect.Map:
-		out := make(M, rv.Len())
-
-		for iter := rv.MapRange(); iter.Next(); {
-			out[kf(iter.Key().Interface())] = vf(iter.Value().Interface())
-		}
-
-		return out
-	case reflect.Slice, reflect.Array:
-		out := make(M, rv.Len())
-
-		for i := range rv.Len() {
-			out[kf(i)] = vf(rv.Index(i).Interface())
-		}
-
-		return out
-	case reflect.Struct:
-		out := make(M, rv.NumField())
-
-		for name, field := range reflection.ExportedFields(rv) {
-			out[kf(name)] = vf(field.Interface())
-		}
-
-		return out
-	}
-
-	return M{kf(0): vf(value)}
-}
-
-func ToAnyMap(value any) map[string]any {
-	return ToMap(value, ToString, ToAny)
-}
-
-func ToBoolMap(value any) map[string]bool {
-	return ToMap(value, ToString, ToBool)
-}
-
-func ToStringMap(value any) map[string]string {
-	return ToMap(value, ToString, ToString)
-}
-
-func ToIntMap(value any) map[string]int {
-	return ToMap(value, ToString, ToInt)
-}
-
-func ToInt8Map(value any) map[string]int8 {
-	return ToMap(value, ToString, ToInt8)
-}
-
-func ToInt16Map(value any) map[string]int16 {
-	return ToMap(value, ToString, ToInt16)
-}
-
-func ToInt32Map(value any) map[string]int32 {
-	return ToMap(value, ToString, ToInt32)
-}
-
-func ToInt64Map(value any) map[string]int64 {
-	return ToMap(value, ToString, ToInt64)
-}
-
-func ToUintMap(value any) map[string]uint {
-	return ToMap(value, ToString, ToUint)
-}
-
-func ToUint8Map(value any) map[string]uint8 {
-	return ToMap(value, ToString, ToUint8)
-}
-
-func ToUint16Map(value any) map[string]uint16 {
-	return ToMap(value, ToString, ToUint16)
-}
-
-func ToUint32Map(value any) map[string]uint32 {
-	return ToMap(value, ToString, ToUint32)
-}
-
-func ToUint64Map(value any) map[string]uint64 {
-	return ToMap(value, ToString, ToUint64)
-}
-
-func ToFloat32Map(value any) map[string]float32 {
-	return ToMap(value, ToString, ToFloat32)
-}
-
-func ToFloat64Map(value any) map[string]float64 {
-	return ToMap(value, ToString, ToFloat64)
-}
-
-func ToDurationMap(value any) map[string]time.Duration {
-	return ToMap(value, ToString, ToDuration)
-}
-
-func ToTimeMap(value any) map[string]time.Time {
-	return ToMap(value, ToString, ToTime)
+	return time.Unix(s, unixNsec(s, f)).UTC()
 }
 
 func unixNsec(s int64, f float64) int64 {

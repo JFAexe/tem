@@ -22,25 +22,24 @@ var structTags = []string{
 	"toml",
 }
 
-func IndirectValue(v reflect.Value) (reflect.Value, error) {
+func IndirectValue(v reflect.Value) reflect.Value {
 	for {
 		switch v.Kind() {
 		case reflect.Pointer, reflect.Interface:
 			if v.IsNil() {
-				return reflect.Value{}, ErrNilPointer
+				return reflect.Value{}
 			}
 
 			v = v.Elem()
 		default:
-			return v, nil
+			return v
 		}
 	}
 }
 
 func Lookup(v reflect.Value, key any) (reflect.Value, error) {
-	v, err := IndirectValue(v)
-	if err != nil {
-		return reflect.Value{}, err
+	if v = IndirectValue(v); !v.IsValid() {
+		return reflect.Value{}, ErrNilPointer
 	}
 
 	if !v.IsValid() {
@@ -95,42 +94,66 @@ func ConvertValue(v reflect.Value, target reflect.Type) (reflect.Value, error) {
 	return v.Convert(target), nil
 }
 
-func CompareValues(elem, target reflect.Value) bool {
-	if !elem.IsValid() || !target.IsValid() {
-		return elem.IsValid() == target.IsValid()
+func CompareValues(v, target reflect.Value) bool {
+	if !v.IsValid() || !target.IsValid() {
+		return v.IsValid() == target.IsValid()
 	}
 
-	if elem, _ = IndirectValue(elem); elem.Type() == target.Type() {
-		return reflect.DeepEqual(elem.Interface(), target.Interface())
+	if v = IndirectValue(v); !v.IsValid() {
+		return false
 	}
 
-	if elem.Type().ConvertibleTo(target.Type()) {
-		return reflect.DeepEqual(elem.Convert(target.Type()).Interface(), target.Interface())
+	if v.Type() == target.Type() {
+		return reflect.DeepEqual(v.Interface(), target.Interface())
+	}
+
+	if v.Type().ConvertibleTo(target.Type()) {
+		return reflect.DeepEqual(v.Convert(target.Type()).Interface(), target.Interface())
 	}
 
 	return false
 }
 
 func ToIndex(i any) (int64, error) {
-	iv := reflect.ValueOf(i)
-
-	if !iv.IsValid() {
+	if i == nil {
 		return 0, ErrInvalidIndex
 	}
 
-	switch iv.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return iv.Int(), nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return int64(iv.Uint()), nil
+	switch v := i.(type) {
+	case int:
+		return int64(v), nil
+	case int8:
+		return int64(v), nil
+	case int16:
+		return int64(v), nil
+	case int32:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case uint:
+		return int64(v), nil
+	case uint8:
+		return int64(v), nil
+	case uint16:
+		return int64(v), nil
+	case uint32:
+		return int64(v), nil
+	case uint64:
+		return int64(v), nil
+	case uintptr:
+		return int64(v), nil
 	}
 
 	return 0, ErrInvalidIndex
 }
 
 func ExtractKey(item any, key any) any {
-	rv, err := IndirectValue(reflect.ValueOf(item))
-	if err != nil || !rv.IsValid() {
+	if item == nil {
+		return nil
+	}
+
+	rv := IndirectValue(reflect.ValueOf(item))
+	if !rv.IsValid() {
 		return nil
 	}
 
@@ -157,17 +180,19 @@ func ExtractKey(item any, key any) any {
 }
 
 func ResolveKey(m reflect.Value, key any) (reflect.Value, error) {
-	kv := reflect.ValueOf(key)
+	kt := m.Type().Key()
 
-	if !kv.IsValid() {
-		kv = reflect.Zero(m.Type().Key())
+	if key == nil {
+		return reflect.Zero(kt), nil
 	}
 
-	if !kv.Type().ConvertibleTo(m.Type().Key()) {
+	kv := reflect.ValueOf(key)
+
+	if !kv.Type().ConvertibleTo(kt) {
 		return reflect.Value{}, ErrTypeMismatch
 	}
 
-	return kv.Convert(m.Type().Key()), nil
+	return kv.Convert(kt), nil
 }
 
 func ResolveField(v reflect.Value, key any) (reflect.Value, error) {

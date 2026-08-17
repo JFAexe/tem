@@ -139,14 +139,8 @@ func Set(item, value any, args ...any) (any, error) {
 		v = next
 	}
 
-	var err error
-
-	if v, err = reflection.IndirectValue(v); err != nil {
-		return item, fmt.Errorf("cannot set on nil pointer")
-	}
-
-	if !v.IsValid() {
-		return item, fmt.Errorf("invalid final container")
+	if v = reflection.IndirectValue(v); !v.IsValid() {
+		return item, fmt.Errorf("cannot set: %w", reflection.ErrNilPointer)
 	}
 
 	var (
@@ -233,18 +227,8 @@ func Unset(item any, args ...any) (any, error) {
 		v = next
 	}
 
-	var err error
-
-	if v, err = reflection.IndirectValue(v); err != nil {
-		if errors.Is(err, reflection.ErrNilPointer) {
-			return item, nil
-		}
-
-		return item, err
-	}
-
-	if !v.IsValid() {
-		return item, fmt.Errorf("invalid final container")
+	if v = reflection.IndirectValue(v); !v.IsValid() {
+		return item, fmt.Errorf("cannot unset: %w", reflection.ErrNilPointer)
 	}
 
 	key := args[len(args)-1]
@@ -307,13 +291,13 @@ func In(item, value any) bool {
 		return false
 	}
 
-	iv, err := reflection.IndirectValue(reflect.ValueOf(item))
-	if err != nil || !iv.IsValid() {
+	iv := reflection.IndirectValue(reflect.ValueOf(item))
+	if !iv.IsValid() {
 		return false
 	}
 
-	tv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !tv.IsValid() {
+	tv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !tv.IsValid() {
 		return false
 	}
 

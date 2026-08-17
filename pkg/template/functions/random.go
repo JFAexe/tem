@@ -38,8 +38,8 @@ func (f *Random) Pick(values ...any) (any, error) {
 }
 
 func (*Random) PickFrom(value any) (any, error) {
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
 		return nil, ErrEmptyList
 	}
 

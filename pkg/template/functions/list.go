@@ -26,8 +26,8 @@ func (*List) First(items any) any {
 		return v[0]
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(items))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(items))
+	if !rv.IsValid() {
 		return nil
 	}
 
@@ -43,8 +43,8 @@ func (*List) Last(items any) any {
 		return v[len(v)-1]
 	}
 
-	rv, err := reflection.IndirectValue(reflect.ValueOf(items))
-	if err != nil || !rv.IsValid() {
+	rv := reflection.IndirectValue(reflect.ValueOf(items))
+	if !rv.IsValid() {
 		return nil
 	}
 
@@ -189,12 +189,34 @@ func compareAny(a, b any) int {
 		}
 	}
 
+	switch a.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		switch b.(type) {
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+			return cmp.Compare(convert.ToFloat64(a), convert.ToFloat64(b))
+		}
+	}
+
+	if ba, ok := a.(bool); ok {
+		if bb, ok := b.(bool); ok {
+			if ba == bb {
+				return 0
+			}
+
+			if ba {
+				return 1
+			}
+
+			return -1
+		}
+	}
+
 	var (
-		ra, _ = reflection.IndirectValue(reflect.ValueOf(a))
-		rb, _ = reflection.IndirectValue(reflect.ValueOf(b))
+		ra = reflection.IndirectValue(reflect.ValueOf(a))
+		rb = reflection.IndirectValue(reflect.ValueOf(b))
 	)
 
-	if (ra.CanInt() || ra.CanFloat()) && (rb.CanInt() || rb.CanFloat()) {
+	if (ra.CanInt() || ra.CanUint() || ra.CanFloat()) && (rb.CanInt() || rb.CanUint() || rb.CanFloat()) {
 		return cmp.Compare(convert.ToFloat64(a), convert.ToFloat64(b))
 	}
 

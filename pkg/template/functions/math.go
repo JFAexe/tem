@@ -178,9 +178,9 @@ func (*Math) Max(values ...any) float64 {
 }
 
 func (*Math) Clamp(minimum, maximum, value any) (result float64, err error) {
-	rv, err := reflection.IndirectValue(reflect.ValueOf(value))
-	if err != nil || !rv.IsValid() {
-		return 0, err
+	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	if !rv.IsValid() {
+		return 0, fmt.Errorf("got invalid value: %w", reflection.ErrNilPointer)
 	}
 
 	if !rv.CanInt() && !rv.CanFloat() {

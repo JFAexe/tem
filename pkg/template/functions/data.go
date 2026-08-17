@@ -279,7 +279,7 @@ func (*Data) ToCSV(delim, data any) (string, error) {
 	w := csv.NewWriter(&b)
 	w.Comma = convert.ToRune(delim)
 
-	d := convert.ToSlice(data, convert.ToStringMap)
+	d := convert.ToSlice(data, convert.ToStringStringMap)
 
 	if len(d) == 0 {
 		return "", nil
