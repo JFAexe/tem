@@ -2,7 +2,6 @@ package functions
 
 import (
 	"fmt"
-	"maps"
 	"reflect"
 
 	"github.com/JFAexe/tem/pkg/convert"
@@ -30,24 +29,11 @@ func (*Map) New(kv ...any) (map[string]any, error) {
 }
 
 func (*Map) Merge(to any, with ...any) map[string]any {
-	t, ok := to.(map[string]any)
-	if !ok {
-		t = convert.ToStringAnyMap(to)
-	}
-
-	if t == nil {
-		t = make(map[string]any)
-	}
+	t := convert.ToStringAnyMap(to)
 
 	for _, w := range with {
-		if wm, ok := w.(map[string]any); ok {
-			maps.Copy(t, wm)
-
-			continue
-		}
-
-		rv := reflection.IndirectValue(reflect.ValueOf(w))
-		if !rv.IsValid() || rv.Kind() != reflect.Map {
+		rv, ok := mapReflectValue(w)
+		if !ok {
 			continue
 		}
 
@@ -62,20 +48,8 @@ func (*Map) Merge(to any, with ...any) map[string]any {
 func (*Map) Pick(m any, keys ...any) map[string]any {
 	out := make(map[string]any, len(keys))
 
-	if d, ok := m.(map[string]any); ok {
-		for _, k := range keys {
-			ks := convert.ToString(k)
-
-			if v, ok := d[ks]; ok {
-				out[ks] = v
-			}
-		}
-
-		return out
-	}
-
-	rv := reflection.IndirectValue(reflect.ValueOf(m))
-	if !rv.IsValid() || rv.Kind() != reflect.Map {
+	rv, ok := mapReflectValue(m)
+	if !ok {
 		return out
 	}
 
@@ -100,20 +74,8 @@ func (*Map) Omit(m any, keys ...any) map[string]any {
 		set[convert.ToString(k)] = struct{}{}
 	}
 
-	if d, ok := m.(map[string]any); ok {
-		out := make(map[string]any, len(d))
-
-		for k, v := range d {
-			if _, ok := set[k]; !ok {
-				out[k] = v
-			}
-		}
-
-		return out
-	}
-
-	rv := reflection.IndirectValue(reflect.ValueOf(m))
-	if !rv.IsValid() || rv.Kind() != reflect.Map {
+	rv, ok := mapReflectValue(m)
+	if !ok {
 		return make(map[string]any)
 	}
 
@@ -134,18 +96,8 @@ func (*Map) Omit(m any, keys ...any) map[string]any {
 }
 
 func (*Map) Keys(m any) []any {
-	if v, ok := m.(map[string]any); ok {
-		out := make([]any, 0, len(v))
-
-		for k := range v {
-			out = append(out, k)
-		}
-
-		return out
-	}
-
-	rv := reflection.IndirectValue(reflect.ValueOf(m))
-	if !rv.IsValid() || rv.Kind() != reflect.Map {
+	rv, ok := mapReflectValue(m)
+	if !ok {
 		return make([]any, 0)
 	}
 
@@ -162,18 +114,8 @@ func (*Map) Keys(m any) []any {
 }
 
 func (*Map) Values(m any) []any {
-	if v, ok := m.(map[string]any); ok {
-		out := make([]any, 0, len(v))
-
-		for _, v := range v {
-			out = append(out, v)
-		}
-
-		return out
-	}
-
-	rv := reflection.IndirectValue(reflect.ValueOf(m))
-	if !rv.IsValid() || rv.Kind() != reflect.Map {
+	rv, ok := mapReflectValue(m)
+	if !ok {
 		return make([]any, 0)
 	}
 
@@ -187,4 +129,13 @@ func (*Map) Values(m any) []any {
 	}
 
 	return out
+}
+
+func mapReflectValue(m any) (reflect.Value, bool) {
+	rv := reflection.IndirectValue(reflect.ValueOf(m))
+	if !rv.IsValid() || rv.Kind() != reflect.Map {
+		return rv, false
+	}
+
+	return rv, true
 }

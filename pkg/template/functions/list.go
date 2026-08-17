@@ -22,37 +22,21 @@ func (*List) New(values ...any) []any {
 }
 
 func (*List) First(items any) any {
-	if v, ok := items.([]any); ok && len(v) > 0 {
-		return v[0]
-	}
-
-	rv := reflection.IndirectValue(reflect.ValueOf(items))
-	if !rv.IsValid() {
+	rv, ok := sliceReflectValue(items)
+	if !ok || rv.Len() == 0 {
 		return nil
 	}
 
-	if (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && rv.Len() > 0 {
-		return rv.Index(0).Interface()
-	}
-
-	return nil
+	return rv.Index(0).Interface()
 }
 
 func (*List) Last(items any) any {
-	if v, ok := items.([]any); ok && len(v) > 0 {
-		return v[len(v)-1]
-	}
-
-	rv := reflection.IndirectValue(reflect.ValueOf(items))
-	if !rv.IsValid() {
+	rv, ok := sliceReflectValue(items)
+	if !ok || rv.Len() == 0 {
 		return nil
 	}
 
-	if (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && rv.Len() > 0 {
-		return rv.Index(rv.Len() - 1).Interface()
-	}
-
-	return nil
+	return rv.Index(rv.Len() - 1).Interface()
 }
 
 func (*List) Append(item any, values ...any) []any {
@@ -93,42 +77,34 @@ func (*List) Reverse(items any) []any {
 func (*List) Sort(items any) ([]any, error) {
 	out := convert.ToAnySlice(items)
 
-	if len(out) <= 1 {
-		return out, nil
+	if len(out) > 1 {
+		slices.SortStableFunc(out, compareAny)
 	}
-
-	slices.SortStableFunc(out, compareAny)
 
 	return out, nil
 }
 
 func (*List) SortBy(key, items any) ([]any, error) {
-	unsorted := convert.ToAnySlice(items)
-
-	if len(unsorted) <= 1 {
-		return unsorted, nil
+	out := convert.ToAnySlice(items)
+	if len(out) <= 1 {
+		return out, nil
 	}
 
-	keys := make([]any, len(unsorted))
-
-	for i, item := range unsorted {
-		keys[i] = reflection.ExtractKey(item, key)
+	type kv struct {
+		key any
+		val any
 	}
 
-	indices := make([]int, len(unsorted))
+	pairs := make([]kv, len(out))
 
-	for i := range indices {
-		indices[i] = i
+	for i, item := range out {
+		pairs[i] = kv{reflection.ExtractKey(item, key), item}
 	}
 
-	slices.SortStableFunc(indices, func(i, j int) int {
-		return compareAny(keys[i], keys[j])
-	})
+	slices.SortStableFunc(pairs, func(a, b kv) int { return compareAny(a.key, b.key) })
 
-	out := make([]any, len(unsorted))
-
-	for i, idx := range indices {
-		out[i] = unsorted[idx]
+	for i, p := range pairs {
+		out[i] = p.val
 	}
 
 	return out, nil
@@ -141,42 +117,7 @@ func (*List) Unique(items any) []any {
 		return s
 	}
 
-	var (
-		out          = make([]any, 0, len(s))
-		seen         = make(map[any]struct{}, len(s))
-		uncomparable = false
-	)
-
-	for _, item := range s {
-		if !uncomparable && reflect.TypeOf(item) != nil && reflect.TypeOf(item).Comparable() {
-			if _, ok := seen[item]; ok {
-				continue
-			}
-
-			seen[item] = struct{}{}
-			out = append(out, item)
-
-			continue
-		}
-
-		uncomparable = true
-
-		var exists bool
-
-		for _, u := range out {
-			if equalAny(item, u) {
-				exists = true
-
-				break
-			}
-		}
-
-		if !exists {
-			out = append(out, item)
-		}
-	}
-
-	return out
+	return uniqueBy(s, convert.ToAny)
 }
 
 func (*List) UniqueBy(key, items any) []any {
@@ -186,44 +127,7 @@ func (*List) UniqueBy(key, items any) []any {
 		return s
 	}
 
-	var (
-		out          = make([]any, 0, len(s))
-		seen         = make(map[any]struct{}, len(s))
-		uncomparable = false
-	)
-
-	for _, item := range s {
-		k := reflection.ExtractKey(item, key)
-
-		if !uncomparable && reflect.TypeOf(k) != nil && reflect.TypeOf(k).Comparable() {
-			if _, ok := seen[k]; ok {
-				continue
-			}
-
-			seen[k] = struct{}{}
-			out = append(out, item)
-
-			continue
-		}
-
-		uncomparable = true
-
-		var exists bool
-
-		for _, u := range out {
-			if equalAny(k, reflection.ExtractKey(u, key)) {
-				exists = true
-
-				break
-			}
-		}
-
-		if !exists {
-			out = append(out, item)
-		}
-	}
-
-	return out
+	return uniqueBy(s, func(v any) any { return reflection.ExtractKey(v, key) })
 }
 
 func listConcat(values ...any) []any {
@@ -244,7 +148,7 @@ func listFlatten(items []any, out *[]any) {
 			continue
 		}
 
-		if rv := reflection.IndirectValue(reflect.ValueOf(item)); rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) {
+		if _, ok := sliceReflectValue(item); ok {
 			listFlatten(convert.ToAnySlice(item), out)
 
 			continue
@@ -252,6 +156,60 @@ func listFlatten(items []any, out *[]any) {
 
 		*out = append(*out, item)
 	}
+}
+
+func uniqueBy(s []any, key func(any) any) []any {
+	var (
+		out  = make([]any, 0, len(s))
+		seen = make(map[any]struct{}, len(s))
+	)
+
+	for _, item := range s {
+		var (
+			k = key(item)
+			t = reflect.TypeOf(k)
+		)
+
+		if k == nil || (t != nil && t.Comparable()) {
+			if _, ok := seen[k]; ok {
+				continue
+			}
+
+			seen[k] = struct{}{}
+			out = append(out, item)
+
+			continue
+		}
+
+		var skip bool
+
+		for _, v := range out {
+			if equalAny(k, key(v)) {
+				skip = true
+
+				break
+			}
+		}
+
+		if !skip {
+			out = append(out, item)
+		}
+	}
+
+	return out
+}
+
+func sliceReflectValue(items any) (reflect.Value, bool) {
+	rv := reflection.IndirectValue(reflect.ValueOf(items))
+	if !rv.IsValid() {
+		return rv, false
+	}
+
+	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+		return rv, true
+	}
+
+	return rv, false
 }
 
 func equalAny(a, b any) bool {
@@ -282,11 +240,9 @@ func equalAny(a, b any) bool {
 }
 
 func compareAny(a, b any) int {
-	if a == nil && b == nil {
-		return 0
-	}
-
 	switch {
+	case a == nil && b == nil:
+		return 0
 	case a == nil:
 		return -1
 	case b == nil:
@@ -294,30 +250,8 @@ func compareAny(a, b any) int {
 	}
 
 	if ta, ok := a.(time.Time); ok {
-		if tb, ok2 := b.(time.Time); ok2 {
+		if tb, ok := b.(time.Time); ok {
 			return ta.Compare(tb)
-		}
-	}
-
-	switch a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-		switch b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-			return cmp.Compare(convert.ToFloat64(a), convert.ToFloat64(b))
-		}
-	}
-
-	if ba, ok := a.(bool); ok {
-		if bb, ok := b.(bool); ok {
-			if ba == bb {
-				return 0
-			}
-
-			if ba {
-				return 1
-			}
-
-			return -1
 		}
 	}
 
@@ -331,15 +265,14 @@ func compareAny(a, b any) int {
 	}
 
 	if ra.Kind() == reflect.Bool && rb.Kind() == reflect.Bool {
-		if ra.Bool() == rb.Bool() {
+		switch {
+		case ra.Bool() == rb.Bool():
 			return 0
-		}
-
-		if ra.Bool() {
+		case ra.Bool():
 			return 1
+		default:
+			return -1
 		}
-
-		return -1
 	}
 
 	return cmp.Compare(strings.ToLower(convert.ToString(a)), strings.ToLower(convert.ToString(b)))
