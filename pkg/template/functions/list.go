@@ -55,14 +55,31 @@ func (*List) Last(items any) any {
 	return nil
 }
 
+func (*List) Append(item any, values ...any) []any {
+	return append(convert.ToAnySlice(item), values...)
+}
+
+func (*List) Prepend(item any, values ...any) []any {
+	return append(values, convert.ToAnySlice(item)...)
+}
+
 func (*List) Concat(values ...any) []any {
 	return listConcat(values...)
 }
 
+func (*List) Flatten(items any) []any {
+	var (
+		s   = convert.ToAnySlice(items)
+		out = make([]any, 0, len(s))
+	)
+
+	listFlatten(s, &out)
+
+	return out
+}
+
 func (*List) Compact(items any) []any {
-	return slices.CompactFunc(convert.ToAnySlice(items), func(a, b any) bool {
-		return reflection.CompareValues(reflect.ValueOf(a), reflect.ValueOf(b))
-	})
+	return slices.CompactFunc(convert.ToAnySlice(items), equalAny)
 }
 
 func (*List) Reverse(items any) []any {
@@ -86,15 +103,33 @@ func (*List) Sort(items any) ([]any, error) {
 }
 
 func (*List) SortBy(key, items any) ([]any, error) {
-	out := convert.ToAnySlice(items)
+	unsorted := convert.ToAnySlice(items)
 
-	if len(out) <= 1 {
-		return out, nil
+	if len(unsorted) <= 1 {
+		return unsorted, nil
 	}
 
-	slices.SortStableFunc(out, func(a, b any) int {
-		return compareAny(reflection.ExtractKey(a, key), reflection.ExtractKey(b, key))
+	keys := make([]any, len(unsorted))
+
+	for i, item := range unsorted {
+		keys[i] = reflection.ExtractKey(item, key)
+	}
+
+	indices := make([]int, len(unsorted))
+
+	for i := range indices {
+		indices[i] = i
+	}
+
+	slices.SortStableFunc(indices, func(i, j int) int {
+		return compareAny(keys[i], keys[j])
 	})
+
+	out := make([]any, len(unsorted))
+
+	for i, idx := range indices {
+		out[i] = unsorted[idx]
+	}
 
 	return out, nil
 }
@@ -106,13 +141,30 @@ func (*List) Unique(items any) []any {
 		return s
 	}
 
-	out := make([]any, 0, len(s))
+	var (
+		out          = make([]any, 0, len(s))
+		seen         = make(map[any]struct{}, len(s))
+		uncomparable = false
+	)
 
 	for _, item := range s {
+		if !uncomparable && reflect.TypeOf(item) != nil && reflect.TypeOf(item).Comparable() {
+			if _, ok := seen[item]; ok {
+				continue
+			}
+
+			seen[item] = struct{}{}
+			out = append(out, item)
+
+			continue
+		}
+
+		uncomparable = true
+
 		var exists bool
 
 		for _, u := range out {
-			if reflection.CompareValues(reflect.ValueOf(item), reflect.ValueOf(u)) {
+			if equalAny(item, u) {
 				exists = true
 
 				break
@@ -134,19 +186,32 @@ func (*List) UniqueBy(key, items any) []any {
 		return s
 	}
 
-	out := make([]any, 0, len(s))
+	var (
+		out          = make([]any, 0, len(s))
+		seen         = make(map[any]struct{}, len(s))
+		uncomparable = false
+	)
 
 	for _, item := range s {
-		var (
-			exists bool
+		k := reflection.ExtractKey(item, key)
 
-			ik = reflect.ValueOf(reflection.ExtractKey(item, key))
-		)
+		if !uncomparable && reflect.TypeOf(k) != nil && reflect.TypeOf(k).Comparable() {
+			if _, ok := seen[k]; ok {
+				continue
+			}
+
+			seen[k] = struct{}{}
+			out = append(out, item)
+
+			continue
+		}
+
+		uncomparable = true
+
+		var exists bool
 
 		for _, u := range out {
-			uk := reflect.ValueOf(reflection.ExtractKey(u, key))
-
-			if reflection.CompareValues(ik, uk) {
+			if equalAny(k, reflection.ExtractKey(u, key)) {
 				exists = true
 
 				break
@@ -169,6 +234,51 @@ func listConcat(values ...any) []any {
 	}
 
 	return slices.Concat(out...)
+}
+
+func listFlatten(items []any, out *[]any) {
+	for _, item := range items {
+		if s, ok := item.([]any); ok {
+			listFlatten(s, out)
+
+			continue
+		}
+
+		if rv := reflection.IndirectValue(reflect.ValueOf(item)); rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) {
+			listFlatten(convert.ToAnySlice(item), out)
+
+			continue
+		}
+
+		*out = append(*out, item)
+	}
+}
+
+func equalAny(a, b any) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	switch a := a.(type) {
+	case int:
+		if b, ok := b.(int); ok {
+			return a == b
+		}
+	case string:
+		if b, ok := b.(string); ok {
+			return a == b
+		}
+	case bool:
+		if b, ok := b.(bool); ok {
+			return a == b
+		}
+	case time.Time:
+		if b, ok := b.(time.Time); ok {
+			return a.Equal(b)
+		}
+	}
+
+	return reflection.CompareValues(reflect.ValueOf(a), reflect.ValueOf(b))
 }
 
 func compareAny(a, b any) int {

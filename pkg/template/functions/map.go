@@ -30,10 +30,30 @@ func (*Map) New(kv ...any) (map[string]any, error) {
 }
 
 func (*Map) Merge(to any, with ...any) map[string]any {
-	t := convert.ToAnyMap(to)
+	t, ok := to.(map[string]any)
+	if !ok {
+		t = convert.ToStringAnyMap(to)
+	}
+
+	if t == nil {
+		t = make(map[string]any)
+	}
 
 	for _, w := range with {
-		maps.Copy(t, convert.ToAnyMap(w))
+		if wm, ok := w.(map[string]any); ok {
+			maps.Copy(t, wm)
+
+			continue
+		}
+
+		rv := reflection.IndirectValue(reflect.ValueOf(w))
+		if !rv.IsValid() || rv.Kind() != reflect.Map {
+			continue
+		}
+
+		for iter := rv.MapRange(); iter.Next(); {
+			t[convert.ToString(iter.Key().Interface())] = iter.Value().Interface()
+		}
 	}
 
 	return t
