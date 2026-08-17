@@ -41,22 +41,6 @@ func ToSlice[T any, S []T](value any, fn ConvertFunc[T]) S {
 		}
 
 		return out
-	case reflect.Map:
-		out := make(S, 0, rv.Len())
-
-		for iter := rv.MapRange(); iter.Next(); {
-			out = append(out, fn(iter.Value().Interface()))
-		}
-
-		return out
-	case reflect.Struct:
-		out := make(S, 0, rv.NumField())
-
-		for _, field := range reflection.ExportedFields(rv) {
-			out = append(out, fn(field.Interface()))
-		}
-
-		return out
 	}
 
 	return S{fn(value)}
