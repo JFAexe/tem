@@ -8,7 +8,10 @@
 echo '
 [[- $files := list.New -]]
 [[- range $f := filepath.Walk "pkg/**/*.go" true -]]
-  [[- $files = $files | list.Concat ( map "path" $f.RelPath "data" ( $f.Path | file | to.Bytes ) ) -]]
+  [[- $files = ( map
+    "path" $f.RelPath
+    "data" ( $f.AbsPath | file | to.Bytes )
+  ) | list.Append $files -]]
 [[- end -]]
 ---
 [[ $files | list.SortBy "path" | data.ToYAML ]]
