@@ -80,7 +80,7 @@ func ToBool(value any) bool {
 		return boolFromString(v.String())
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return false
 	}
@@ -147,7 +147,7 @@ func ToString(value any) string {
 		return v.String()
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return ""
 	}
@@ -226,7 +226,7 @@ func ToRune(value any) rune {
 		return ToRune(v.String())
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return 0
 	}
@@ -321,7 +321,7 @@ func ToInt64(value any) int64 {
 		return ToInt64(v.String())
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return 0
 	}
@@ -416,7 +416,7 @@ func ToUint64(value any) uint64 {
 		return ToUint64(v.String())
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return 0
 	}
@@ -495,7 +495,7 @@ func ToFloat64(value any) float64 {
 		return ToFloat64(v.String())
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return 0
 	}
@@ -574,7 +574,7 @@ func ToDuration(value any) time.Duration {
 		return ToDuration(v.String())
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return 0
 	}
@@ -651,7 +651,7 @@ func ToTime(value any) time.Time {
 		return ToTime(v.String())
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return time.Time{}
 	}

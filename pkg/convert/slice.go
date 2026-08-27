@@ -18,7 +18,7 @@ func ToSlice[T any, S []T](value any, fn ConvertFunc[T]) S {
 		return slices.Clone(v)
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return make(S, 0)
 	}
@@ -150,7 +150,7 @@ func ToRuneSlice(value any) []rune {
 		return []rune{SafeFloatToInt32(v)}
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return make([]rune, 0)
 	}

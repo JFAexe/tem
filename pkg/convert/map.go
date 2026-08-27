@@ -12,7 +12,7 @@ func ToMap[K comparable, V any, M map[K]V](value any, kf ConvertKeyFunc[K], vf C
 		return make(M)
 	}
 
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return make(M)
 	}
