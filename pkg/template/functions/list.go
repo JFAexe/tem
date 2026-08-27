@@ -200,7 +200,7 @@ func uniqueBy(s []any, key func(any) any) []any {
 }
 
 func sliceReflectValue(items any) (reflect.Value, bool) {
-	rv := reflection.IndirectValue(reflect.ValueOf(items))
+	rv := reflection.IndirectValue(items)
 	if !rv.IsValid() {
 		return rv, false
 	}
@@ -256,8 +256,8 @@ func compareAny(a, b any) int {
 	}
 
 	var (
-		ra = reflection.IndirectValue(reflect.ValueOf(a))
-		rb = reflection.IndirectValue(reflect.ValueOf(b))
+		ra = reflection.IndirectValue(a)
+		rb = reflection.IndirectValue(b)
 	)
 
 	if (ra.CanInt() || ra.CanUint() || ra.CanFloat()) && (rb.CanInt() || rb.CanUint() || rb.CanFloat()) {

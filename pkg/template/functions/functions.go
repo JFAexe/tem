@@ -75,37 +75,27 @@ func Ternary(truthy, falsy, condition any) any {
 }
 
 func Default(value, def any) any {
-	if value == nil {
-		return def
-	}
-
-	v := reflect.ValueOf(value)
-
-	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
-		if v.IsNil() {
-			return def
-		}
-
-		v = v.Elem()
-	}
-
-	if v.IsZero() {
+	if reflection.IsZero(value) {
 		return def
 	}
 
 	return value
 }
 
+func Zero(value any) any {
+	return reflection.Zero(value)
+}
+
+func IsZero(value any) bool {
+	return reflection.IsZero(value)
+}
+
 func IndexOr(item, def any, args ...any) any {
-	v := reflect.ValueOf(item)
-
 	if len(args) == 0 {
-		if !v.IsValid() {
-			return def
-		}
-
-		return item
+		return Default(item, def)
 	}
+
+	v := reflect.ValueOf(item)
 
 	for _, arg := range args {
 		next, err := reflection.Lookup(v, arg)
@@ -291,12 +281,12 @@ func In(item, value any) bool {
 		return false
 	}
 
-	iv := reflection.IndirectValue(reflect.ValueOf(item))
+	iv := reflection.IndirectValue(item)
 	if !iv.IsValid() {
 		return false
 	}
 
-	tv := reflection.IndirectValue(reflect.ValueOf(value))
+	tv := reflection.IndirectValue(value)
 	if !tv.IsValid() {
 		return false
 	}

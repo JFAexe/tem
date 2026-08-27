@@ -132,7 +132,7 @@ func (*Map) Values(m any) []any {
 }
 
 func mapReflectValue(m any) (reflect.Value, bool) {
-	rv := reflection.IndirectValue(reflect.ValueOf(m))
+	rv := reflection.IndirectValue(m)
 	if !rv.IsValid() || rv.Kind() != reflect.Map {
 		return rv, false
 	}

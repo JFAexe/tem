@@ -3,7 +3,6 @@ package functions
 import (
 	"fmt"
 	"math"
-	"reflect"
 	"slices"
 
 	"github.com/JFAexe/tem/pkg/convert"
@@ -178,7 +177,7 @@ func (*Math) Max(values ...any) float64 {
 }
 
 func (*Math) Clamp(minimum, maximum, value any) (result float64, err error) {
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
 		return 0, fmt.Errorf("got invalid value: %w", reflection.ErrNilPointer)
 	}
