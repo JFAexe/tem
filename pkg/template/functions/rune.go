@@ -70,7 +70,7 @@ func rangeSet(lower, upper any) []rune {
 func syntaxSet(pattern string) ([]rune, error) {
 	re, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
-		return nil, fmt.Errorf("parse regex %q: %w", pattern, err)
+		return nil, fmt.Errorf("parse regex %#q: %w", pattern, err)
 	}
 
 	re = re.Simplify()
@@ -90,14 +90,14 @@ func syntaxSet(pattern string) ([]rune, error) {
 		return runes, nil
 	case syntax.OpLiteral:
 		if len(re.Rune) != 1 {
-			return nil, fmt.Errorf("multi-character literal %q not supported", pattern)
+			return nil, fmt.Errorf("multi-character literal %#q not supported", pattern)
 		}
 
 		return []rune{re.Rune[0]}, nil
 	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
 		return rangeSet(0, unicode.MaxRune), nil
 	default:
-		return nil, fmt.Errorf("pattern %q is not a simple character set (op: %s)", pattern, re.Op)
+		return nil, fmt.Errorf("pattern %#q is not a simple character set (op: %s)", pattern, re.Op)
 	}
 }
 
