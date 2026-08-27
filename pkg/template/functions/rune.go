@@ -4,76 +4,70 @@ import (
 	"fmt"
 	"regexp/syntax"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
+var runeRangeCache, runeRegexCache sync.Map
+
 type runeRange struct{ lo, hi rune }
 
-type Rune struct {
-	rangeCache map[runeRange][]rune
-	regexCache map[string][]rune
-}
+type Rune struct{}
 
 func (f *Rune) RangeSet(lower, upper any) []rune {
-	var (
-		lr     = convert.ToRune(lower)
-		ur     = convert.ToRune(upper)
-		lo     = min(lr, ur)
-		hi     = max(lr, ur)
-		set, _ = f.cached(runeRange{lo, hi})
-	)
-
-	return set
+	return rangeSet(lower, upper)
 }
 
 func (f *Rune) RegexSet(pattern any) ([]rune, error) {
-	return f.cached(strings.TrimSpace(convert.ToString(pattern)))
+	return cachedRunes(strings.TrimSpace(convert.ToString(pattern)))
 }
 
-func (f *Rune) cached(key any) (set []rune, err error) {
-	var ok bool
-
+func cachedRunes(key any) (set []rune, err error) {
 	switch k := key.(type) {
 	case runeRange:
-		if f.rangeCache == nil {
-			f.rangeCache = make(map[runeRange][]rune)
-		}
-
-		if set, ok = f.rangeCache[k]; ok {
-			return set, nil
+		if val, ok := runeRangeCache.Load(k); ok {
+			return val.([]rune), nil
 		}
 
 		set = expandRange(k.lo, k.hi)
 
-		f.rangeCache[k] = set
+		runeRangeCache.Store(k, set)
 	case string:
-		if f.regexCache == nil {
-			f.regexCache = make(map[string][]rune)
+		if val, ok := runeRegexCache.Load(k); ok {
+			return val.([]rune), nil
 		}
 
-		if set, ok = f.regexCache[k]; ok {
-			return set, nil
-		}
-
-		if set = f.fromUnicode(k); set != nil {
-			f.regexCache[k] = set
+		if set = fromUnicode(k); set != nil {
+			runeRegexCache.Store(k, set)
 
 			return set, nil
 		}
 
-		if set, err = f.syntaxSet(k); err != nil {
+		if set, err = syntaxSet(k); err != nil {
 			return nil, err
 		}
 
-		f.regexCache[k] = set
+		runeRegexCache.Store(k, set)
 	}
 
 	return set, nil
 }
 
-func (f *Rune) syntaxSet(pattern string) ([]rune, error) {
+func rangeSet(lower, upper any) []rune {
+	var (
+		lr     = convert.ToRune(lower)
+		ur     = convert.ToRune(upper)
+		lo     = min(lr, ur)
+		hi     = max(lr, ur)
+		set, _ = cachedRunes(runeRange{lo, hi})
+	)
+
+	return set
+}
+
+func syntaxSet(pattern string) ([]rune, error) {
 	re, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
 		return nil, fmt.Errorf("parse regex %q: %w", pattern, err)
@@ -101,13 +95,13 @@ func (f *Rune) syntaxSet(pattern string) ([]rune, error) {
 
 		return []rune{re.Rune[0]}, nil
 	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
-		return f.RangeSet(0, unicode.MaxRune), nil
+		return rangeSet(0, unicode.MaxRune), nil
 	default:
 		return nil, fmt.Errorf("pattern %q is not a simple character set (op: %s)", pattern, re.Op)
 	}
 }
 
-func (f *Rune) fromUnicode(pattern string) []rune {
+func fromUnicode(pattern string) []rune {
 	name := strings.TrimSpace(pattern)
 
 	if strings.HasPrefix(name, `\p{`) && strings.HasSuffix(name, `}`) {

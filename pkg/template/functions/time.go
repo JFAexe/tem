@@ -2,6 +2,7 @@ package functions
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/JFAexe/tem/pkg/convert"
@@ -25,20 +26,20 @@ var layouts = map[string]string{
 	"time":     time.TimeOnly,
 }
 
-type Time struct {
-	cache map[string]*time.Location
-}
+var timeCache sync.Map
+
+type Time struct{}
 
 func (*Time) Now() time.Time {
 	return time.Now()
 }
 
-func (f *Time) Parse(layout, value any) (time.Time, error) {
+func (*Time) Parse(layout, value any) (time.Time, error) {
 	return time.Parse(convert.ToString(value), convert.ToString(layout))
 }
 
-func (f *Time) In(zone, value any) (time.Time, error) {
-	loc, err := f.cached(convert.ToString(zone))
+func (*Time) In(zone, value any) (time.Time, error) {
+	loc, err := cachedTime(convert.ToString(zone))
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -46,8 +47,8 @@ func (f *Time) In(zone, value any) (time.Time, error) {
 	return convert.ToTime(value).In(loc), nil
 }
 
-func (f *Time) ParseIn(layout, zone, value any) (time.Time, error) {
-	loc, err := f.cached(convert.ToString(zone))
+func (*Time) ParseIn(layout, zone, value any) (time.Time, error) {
+	loc, err := cachedTime(convert.ToString(zone))
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -135,13 +136,9 @@ func (*Time) Layout(value any) string {
 	return time.RFC3339
 }
 
-func (f *Time) cached(zone string) (*time.Location, error) {
-	if f.cache == nil {
-		f.cache = make(map[string]*time.Location)
-	}
-
-	if exp, ok := f.cache[zone]; ok {
-		return exp, nil
+func cachedTime(zone string) (*time.Location, error) {
+	if loc, ok := timeCache.Load(zone); ok {
+		return loc.(*time.Location), nil
 	}
 
 	loc, err := time.LoadLocation(zone)
@@ -149,7 +146,7 @@ func (f *Time) cached(zone string) (*time.Location, error) {
 		return nil, err
 	}
 
-	f.cache[zone] = loc
+	timeCache.Store(zone, loc)
 
 	return loc, nil
 }

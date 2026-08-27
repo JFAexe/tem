@@ -23,15 +23,7 @@ var (
 
 var one = big.NewInt(1)
 
-type Random struct {
-	runes *Rune
-}
-
-func NewRandom(runeFuncs *Rune) *Random {
-	return &Random{
-		runes: runeFuncs,
-	}
-}
+type Random struct{}
 
 func (f *Random) Pick(values ...any) (any, error) {
 	return f.PickFrom(values)
@@ -115,20 +107,22 @@ func (f *Random) String(length any, args ...any) (_ string, err error) {
 
 	switch len(args) {
 	case 0:
-		if set, err = f.runes.RegexSet(`[a-zA-Z0-9._-]`); err != nil {
+		if set, err = cachedRunes(`[a-zA-Z0-9._-]`); err != nil {
 			return "", err
 		}
 	case 2:
-		set = f.runes.RangeSet(args[0], args[1])
+		set = rangeSet(args[0], args[1])
 	default:
-		set = convert.ToRuneSlice(args[0])
+		if set, err = cachedRunes(convert.ToString(args[0])); err != nil {
+			set = convert.ToRuneSlice(args[0])
+		}
 	}
 
 	return randString(convert.ToInt64(length), set)
 }
 
 func (f *Random) ASCII(length any) (string, error) {
-	set, err := f.runes.RegexSet(`[[:ascii:]]`)
+	set, err := cachedRunes(`[[:ascii:]]`)
 	if err != nil {
 		return "", err
 	}
@@ -137,7 +131,7 @@ func (f *Random) ASCII(length any) (string, error) {
 }
 
 func (f *Random) Alpha(length any) (string, error) {
-	set, err := f.runes.RegexSet(`[[:alpha:]]`)
+	set, err := cachedRunes(`[[:alpha:]]`)
 	if err != nil {
 		return "", err
 	}
@@ -146,7 +140,7 @@ func (f *Random) Alpha(length any) (string, error) {
 }
 
 func (f *Random) Numeric(length any) (string, error) {
-	set, err := f.runes.RegexSet(`[[:digit:]]`)
+	set, err := cachedRunes(`[[:digit:]]`)
 	if err != nil {
 		return "", err
 	}
@@ -155,7 +149,7 @@ func (f *Random) Numeric(length any) (string, error) {
 }
 
 func (f *Random) AlphaNumeric(length any) (string, error) {
-	set, err := f.runes.RegexSet(`[[:alnum:]]`)
+	set, err := cachedRunes(`[[:alnum:]]`)
 	if err != nil {
 		return "", err
 	}
@@ -164,7 +158,7 @@ func (f *Random) AlphaNumeric(length any) (string, error) {
 }
 
 func (f *Random) Hex(length any) (string, error) {
-	set, err := f.runes.RegexSet(`[[:xdigit:]]`)
+	set, err := cachedRunes(`[[:xdigit:]]`)
 	if err != nil {
 		return "", err
 	}
@@ -173,7 +167,7 @@ func (f *Random) Hex(length any) (string, error) {
 }
 
 func (f *Random) Graphic(length any) (string, error) {
-	set, err := f.runes.RegexSet(`[[:graph:]]`)
+	set, err := cachedRunes(`[[:graph:]]`)
 	if err != nil {
 		return "", err
 	}

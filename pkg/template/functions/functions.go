@@ -32,11 +32,6 @@ func NamespaceVararg[T any](n T, fn func(T, []any) (any, error)) func(...any) (a
 }
 
 func FuncMap(t *template.Template) template.FuncMap {
-	var (
-		runeFuncs   = new(Rune)
-		randomFuncs = NewRandom(runeFuncs)
-	)
-
 	return template.FuncMap{
 		"pwd":      os.Getwd,
 		"hostname": os.Hostname,
@@ -58,9 +53,9 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"map":      NamespaceVararg(new(Map), MapVarargInit),
 		"math":     Namespace(new(Math)),
 		"path":     Namespace(new(Path)),
-		"random":   Namespace(randomFuncs),
+		"random":   Namespace(new(Random)),
 		"regex":    Namespace(new(Regex)),
-		"rune":     Namespace(runeFuncs),
+		"rune":     Namespace(new(Rune)),
 		"string":   Namespace(new(String)),
 		"time":     Namespace(new(Time)),
 	}

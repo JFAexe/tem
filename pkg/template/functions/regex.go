@@ -3,20 +3,21 @@ package functions
 import (
 	"fmt"
 	"regexp"
+	"sync"
 
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
-type Regex struct {
-	cache map[string]*regexp.Regexp
-}
+var regexCache sync.Map
+
+type Regex struct{}
 
 func (*Regex) Escape(str any) string {
 	return regexp.QuoteMeta(convert.ToString(str))
 }
 
-func (f *Regex) Match(regex, str any) (bool, error) {
-	exp, err := f.cached(convert.ToString(regex))
+func (*Regex) Match(regex, str any) (bool, error) {
+	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return false, err
 	}
@@ -24,8 +25,8 @@ func (f *Regex) Match(regex, str any) (bool, error) {
 	return exp.MatchString(convert.ToString(str)), nil
 }
 
-func (f *Regex) Find(regex, str any) (string, error) {
-	exp, err := f.cached(convert.ToString(regex))
+func (*Regex) Find(regex, str any) (string, error) {
+	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return "", err
 	}
@@ -33,8 +34,8 @@ func (f *Regex) Find(regex, str any) (string, error) {
 	return exp.FindString(convert.ToString(str)), nil
 }
 
-func (f *Regex) FindAll(regex, n, str any) ([]string, error) {
-	exp, err := f.cached(convert.ToString(regex))
+func (*Regex) FindAll(regex, n, str any) ([]string, error) {
+	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return make([]string, 0), err
 	}
@@ -42,8 +43,8 @@ func (f *Regex) FindAll(regex, n, str any) ([]string, error) {
 	return exp.FindAllString(convert.ToString(str), convert.ToInt(n)), nil
 }
 
-func (f *Regex) Replace(regex, rpl, str any) (string, error) {
-	exp, err := f.cached(convert.ToString(regex))
+func (*Regex) Replace(regex, rpl, str any) (string, error) {
+	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return "", err
 	}
@@ -51,8 +52,8 @@ func (f *Regex) Replace(regex, rpl, str any) (string, error) {
 	return exp.ReplaceAllString(convert.ToString(str), convert.ToString(rpl)), nil
 }
 
-func (f *Regex) Split(regex, n, str any) ([]string, error) {
-	exp, err := f.cached(convert.ToString(regex))
+func (*Regex) Split(regex, n, str any) ([]string, error) {
+	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return make([]string, 0), err
 	}
@@ -60,13 +61,9 @@ func (f *Regex) Split(regex, n, str any) ([]string, error) {
 	return exp.Split(convert.ToString(str), convert.ToInt(n)), nil
 }
 
-func (f *Regex) cached(regex string) (*regexp.Regexp, error) {
-	if f.cache == nil {
-		f.cache = make(map[string]*regexp.Regexp)
-	}
-
-	if exp, ok := f.cache[regex]; ok {
-		return exp, nil
+func cachedRegex(regex string) (*regexp.Regexp, error) {
+	if exp, ok := regexCache.Load(regex); ok {
+		return exp.(*regexp.Regexp), nil
 	}
 
 	exp, err := regexp.Compile(regex)
@@ -74,7 +71,7 @@ func (f *Regex) cached(regex string) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("failed to compile regex: %w", err)
 	}
 
-	f.cache[regex] = exp
+	regexCache.Store(regex, exp)
 
 	return exp, nil
 }
