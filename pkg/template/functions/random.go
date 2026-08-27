@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	ErrEmptyList           = errors.New("can't select value from empty list")
+	ErrEmptyObject         = errors.New("can't select value from empty object")
 	ErrUpperNegativeOrZero = errors.New("upper boundary must be greater than 0")
 	ErrLowerGreaterEqual   = errors.New("lower boundary must be less than upper boundary")
 	ErrRangeTooLarge       = errors.New("range is too large")
@@ -30,28 +30,34 @@ func (f *Random) Pick(values ...any) (any, error) {
 }
 
 func (*Random) PickFrom(value any) (any, error) {
-	rv := reflection.IndirectValue(reflect.ValueOf(value))
+	rv := reflection.IndirectValue(value)
 	if !rv.IsValid() {
-		return nil, ErrEmptyList
+		return nil, ErrEmptyObject
 	}
 
-	if rv.Kind() == reflect.Map {
-		out := make([]any, 0, rv.Len())
+	var values []any
+
+	switch rv.Kind() {
+	case reflect.Struct:
+		values = make([]any, 0, rv.NumField())
+
+		for _, field := range reflection.ExportedFields(rv) {
+			values = append(values, field.Interface())
+		}
+	case reflect.Map:
+		values = make([]any, 0, rv.Len())
 
 		for iter := rv.MapRange(); iter.Next(); {
-			out = append(out, iter.Value().Interface())
+			values = append(values, iter.Value().Interface())
 		}
-
-		value = out
+	default:
+		values = convert.ToAnySlice(rv.Interface())
 	}
 
-	var (
-		values = convert.ToAnySlice(value)
-		count  = int64(len(values))
-	)
+	count := int64(len(values))
 
 	if count == 0 {
-		return nil, ErrEmptyList
+		return nil, ErrEmptyObject
 	}
 
 	idx, err := randInt64(count, false)
@@ -59,7 +65,7 @@ func (*Random) PickFrom(value any) (any, error) {
 		return nil, err
 	}
 
-	return values[convert.Clamp(idx, 0, count-1)], nil
+	return values[idx], nil
 }
 
 func (*Random) Shuffle(items any) ([]any, error) {
