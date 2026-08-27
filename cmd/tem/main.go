@@ -61,7 +61,7 @@ var app = &cli.Command{
 			Name:    "delim-left",
 			Aliases: []string{"l"},
 			Sources: cli.EnvVars("TEM_DELIM_LEFT"),
-			Value:   "[[",
+			Value:   template.DefaultLeftDelim,
 			Usage:   "left template delimiter\vresets to default if set to an empty string\r",
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -71,7 +71,7 @@ var app = &cli.Command{
 			Name:    "delim-right",
 			Aliases: []string{"r"},
 			Sources: cli.EnvVars("TEM_DELIM_RIGHT"),
-			Value:   "]]",
+			Value:   template.DefaultRightDelim,
 			Usage:   "right template delimiter\vresets to default if set to an empty string\r",
 			Config: cli.StringConfig{
 				TrimSpace: true,
@@ -231,7 +231,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to parse root template: %w", err)
 	}
 
-	if err := tpl.ParsePaths(definitions); err != nil {
+	if _, err := tpl.ParsePaths(definitions...); err != nil {
 		return fmt.Errorf("failed to parse template definitions: %w", err)
 	}
 

@@ -1,8 +1,10 @@
 package template
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -12,16 +14,23 @@ import (
 	"github.com/JFAexe/tem/pkg/template/functions"
 )
 
-type Option func(t *Template)
+var ErrNoMatches = errors.New("pattern matches no files")
+
+const (
+	DefaultLeftDelim  = "[["
+	DefaultRightDelim = "]]"
+)
+
+type Option func(*Template)
 
 func WithDelims(left, right string) Option {
 	return func(t *Template) {
 		if left = strings.TrimSpace(left); left == "" {
-			left = "[["
+			left = DefaultLeftDelim
 		}
 
 		if right = strings.TrimSpace(right); right == "" {
-			left = "]]"
+			right = DefaultRightDelim
 		}
 
 		t.Delims(left, right)
@@ -46,59 +55,190 @@ func New(name string, options ...Option) *Template {
 	return t
 }
 
-func (t *Template) ParsePaths(paths []string) error {
-	if len(paths) == 0 {
-		return nil
+func (t *Template) ParseGlob(pattern string) (*template.Template, error) {
+	files, err := expandFilePaths([]string{pattern})
+	if err != nil {
+		return nil, err
 	}
 
-	for _, path := range paths {
-		if err := t.ParsePath(path); err != nil {
-			return fmt.Errorf("failed to parse paths: %w", err)
-		}
-	}
-
-	return nil
+	return t.ParseFiles(files...)
 }
 
-func (t *Template) ParsePath(path string) (err error) {
-	if path := strings.TrimSpace(path); path == "" {
-		return nil
+func (t *Template) ParseFS(fsys fs.FS, patterns ...string) (*template.Template, error) {
+	names, err := expandFSPatterns(fsys, patterns)
+	if err != nil {
+		return nil, err
 	}
 
-	var paths []string
+	return t.Template.ParseFS(fsys, names...)
+}
 
-	if strings.ContainsAny(path, "*^!?[]{}") {
-		if paths, err = doublestar.FilepathGlob(path); err != nil {
-			return fmt.Errorf("failed to walk template includes glob %#q: %w", path, err)
+func (t *Template) ParsePaths(paths ...string) (*template.Template, error) {
+	for _, p := range paths {
+		if _, err := t.ParsePath(p); err != nil {
+			return nil, err
 		}
-	} else {
-		abs, err := filepath.Abs(path)
+	}
+
+	return t.Template, nil
+}
+
+func (t *Template) ParsePath(path string) (*template.Template, error) {
+	if path = strings.TrimSpace(path); path == "" {
+		return t.Template, nil
+	}
+
+	switch info, err := os.Stat(path); {
+	case os.IsNotExist(err) && hasGlobMeta(path):
+		files, err := expandFilePaths([]string{path})
 		if err != nil {
-			return fmt.Errorf("failed to get abs path for template includes: %w", err)
+			return nil, err
 		}
 
-		if err = filepath.WalkDir(abs, func(p string, d fs.DirEntry, e error) error {
+		if _, e := t.ParseFiles(files...); e != nil {
+			return nil, fmt.Errorf("failed to glob path %#q: %w", path, e)
+		}
+
+		return t.Template, nil
+	case err == nil:
+		switch {
+		case info.Mode().IsRegular():
+			if _, e := t.ParseFiles(path); e != nil {
+				return nil, fmt.Errorf("failed to parse file %#q: %w", path, e)
+			}
+
+			return t.Template, nil
+		case info.IsDir():
+			files, e := walkRegularFiles(path)
 			if e != nil {
-				return e
+				return nil, e
 			}
 
-			if d.Type().IsRegular() {
-				if p, e = filepath.Abs(p); e != nil {
-					return fmt.Errorf("failed to get abs path for %#q: %w", d.Name(), err)
-				}
-
-				paths = append(paths, p)
+			if _, e = t.ParseFiles(files...); e != nil {
+				return nil, fmt.Errorf("failed to parse dir %#q: %w", path, e)
 			}
 
-			return nil
-		}); err != nil {
-			return fmt.Errorf("failed to walk template includes path %#q: %w", path, err)
+			return t.Template, nil
+		default:
+			return nil, fmt.Errorf("failed to parse path %#q: not a regular file or directory", path)
+		}
+	default:
+		return nil, fmt.Errorf("template path %#q: %w", path, err)
+	}
+}
+
+func expandFilePaths(patterns []string) (out []string, err error) {
+	seen := make(map[string]struct{})
+
+	for _, p := range patterns {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+
+		if !hasGlobMeta(p) {
+			if abs, err := filepath.Abs(p); err == nil {
+				p = abs
+			}
+
+			if _, ok := seen[p]; !ok {
+				seen[p] = struct{}{}
+
+				out = append(out, p)
+			}
+
+			continue
+		}
+
+		matches, err := doublestar.FilepathGlob(p, doublestar.WithFailOnIOErrors(), doublestar.WithFilesOnly())
+		if err != nil {
+			return nil, fmt.Errorf("failed to glob path %#q: %w", p, err)
+		}
+
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("failed to glob path %#q: %w", p, ErrNoMatches)
+		}
+
+		for _, m := range matches {
+			if abs, err := filepath.Abs(m); err == nil {
+				m = abs
+			}
+
+			if _, ok := seen[m]; ok {
+				continue
+			}
+
+			seen[m] = struct{}{}
+
+			out = append(out, m)
 		}
 	}
 
-	if _, err := t.ParseFiles(paths...); err != nil {
-		return fmt.Errorf("failed to parse template includes: %w", err)
+	return out, nil
+}
+
+func expandFSPatterns(fsys fs.FS, patterns []string) (out []string, err error) {
+	seen := make(map[string]struct{})
+
+	for _, p := range patterns {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+
+		if p = filepath.ToSlash(p); !hasGlobMeta(p) {
+			if _, err := fs.Stat(fsys, p); err != nil {
+				return nil, fmt.Errorf("failed to stat path %#q: %w", p, err)
+			}
+
+			if _, ok := seen[p]; !ok {
+				seen[p] = struct{}{}
+
+				out = append(out, p)
+			}
+
+			continue
+		}
+
+		matches, err := doublestar.Glob(fsys, p, doublestar.WithFailOnIOErrors(), doublestar.WithFilesOnly())
+		if err != nil {
+			return nil, fmt.Errorf("failed to glob path %#q: %w", p, err)
+		}
+
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("failed to glob path %#q: %w", p, ErrNoMatches)
+		}
+
+		for _, m := range matches {
+			if _, ok := seen[m]; ok {
+				continue
+			}
+
+			seen[m] = struct{}{}
+
+			out = append(out, m)
+		}
 	}
 
-	return nil
+	return out, nil
+}
+
+func walkRegularFiles(root string) (files []string, err error) {
+	if err = filepath.WalkDir(root, func(p string, d fs.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+
+		if d.Type().IsRegular() {
+			files = append(files, p)
+		}
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("walk %#q: %w", root, err)
+	}
+
+	return files, nil
+}
+
+func hasGlobMeta(s string) bool {
+	return strings.ContainsAny(s, "*?[]{}")
 }
