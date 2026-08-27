@@ -22,7 +22,26 @@ var structTags = []string{
 	"toml",
 }
 
-func IndirectValue(v reflect.Value) reflect.Value {
+func Zero(value any) any {
+	if v := IndirectValue(value); v.IsValid() {
+		return reflect.Zero(v.Type()).Interface()
+	}
+
+	return nil
+}
+
+func IsZero(value any) bool {
+	v := IndirectValue(value)
+
+	return !v.IsValid() || v.IsZero()
+}
+
+func IndirectValue(value any) reflect.Value {
+	v, ok := value.(reflect.Value)
+	if !ok {
+		v = reflect.ValueOf(value)
+	}
+
 	for {
 		switch v.Kind() {
 		case reflect.Pointer, reflect.Interface:
@@ -40,10 +59,6 @@ func IndirectValue(v reflect.Value) reflect.Value {
 func Lookup(v reflect.Value, key any) (reflect.Value, error) {
 	if v = IndirectValue(v); !v.IsValid() {
 		return reflect.Value{}, ErrNilPointer
-	}
-
-	if !v.IsValid() {
-		return reflect.Value{}, ErrInvalidIndex
 	}
 
 	switch v.Kind() {
