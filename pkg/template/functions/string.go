@@ -6,10 +6,16 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
-var singleQuoteReplacer = strings.NewReplacer(`'`, `\'`)
+var (
+	singleQuoteReplacer = strings.NewReplacer(`\"`, `"`, `'`, `\'`)
+	stringCaser         = cases.Title(language.Und)
+)
 
 type String struct{}
 
@@ -18,7 +24,7 @@ func (*String) Quote(value any) string {
 }
 
 func (*String) Squote(value any) string {
-	return fmt.Sprintf("'%s'", singleQuoteReplacer.Replace(convert.ToString(value)))
+	return fmt.Sprint("'", singleQuoteReplacer.Replace(strings.Trim(fmt.Sprintf("%q", convert.ToString(value)), `"`)), "'")
 }
 
 func (*String) Bquote(value any) string {
@@ -42,21 +48,31 @@ func (*String) Upper(value any) string {
 }
 
 func (*String) Title(value any) string {
-	return strings.ToTitle(convert.ToString(value))
+	return stringCaser.String(convert.ToString(value))
 }
 
-func (*String) Cut(separator, value any) ([]string, bool) {
-	before, after, ok := strings.Cut(convert.ToString(value), convert.ToString(separator))
+func (*String) Cut(separator, value any) []string {
+	before, after, _ := strings.Cut(convert.ToString(value), convert.ToString(separator))
 
-	return []string{before, after}, ok
+	return []string{before, after}
 }
 
-func (*String) CutPrefix(prefix, value any) (string, bool) {
-	return strings.CutPrefix(convert.ToString(value), convert.ToString(prefix))
+func (*String) CutPrefix(prefix, value any) string {
+	after, _ := strings.CutPrefix(convert.ToString(value), convert.ToString(prefix))
+
+	return after
 }
 
-func (*String) CutSuffix(suffix, value any) (string, bool) {
-	return strings.CutSuffix(convert.ToString(value), convert.ToString(suffix))
+func (*String) CutSuffix(suffix, value any) string {
+	before, _ := strings.CutSuffix(convert.ToString(value), convert.ToString(suffix))
+
+	return before
+}
+
+func (*String) CutLast(separator, value any) []string {
+	before, after, _ := strings.CutLast(convert.ToString(value), convert.ToString(separator))
+
+	return []string{before, after}
 }
 
 func (*String) TrimSpace(value any) string {
@@ -99,16 +115,36 @@ func (*String) ContainsAny(charset, value any) bool {
 	return strings.ContainsAny(convert.ToString(value), convert.ToString(charset))
 }
 
+func (*String) Count(subvalue, value any) int {
+	return strings.Count(convert.ToString(value), convert.ToString(subvalue))
+}
+
 func (*String) Replace(old, new, value any) string {
 	return strings.ReplaceAll(convert.ToString(value), convert.ToString(old), convert.ToString(new))
 }
 
+func (*String) ReplaceN(old, new, count, value any) string {
+	return strings.Replace(convert.ToString(value), convert.ToString(old), convert.ToString(new), convert.ToInt(count))
+}
+
 func (*String) Repeat(count, value any) string {
-	return strings.Repeat(convert.ToString(value), convert.ToInt(count))
+	return strings.Repeat(convert.ToString(value), max(0, convert.ToInt(count)))
 }
 
 func (*String) Split(separator, value any) []string {
 	return strings.Split(convert.ToString(value), convert.ToString(separator))
+}
+
+func (*String) SplitN(separator, count, value any) []string {
+	return strings.SplitN(convert.ToString(value), convert.ToString(separator), convert.ToInt(count))
+}
+
+func (*String) SplitAfter(separator, value any) []string {
+	return strings.SplitAfter(convert.ToString(value), convert.ToString(separator))
+}
+
+func (*String) SplitAfterN(separator, count, value any) []string {
+	return strings.SplitAfterN(convert.ToString(value), convert.ToString(separator), convert.ToInt(count))
 }
 
 func (*String) Join(separator any, values ...any) string {
@@ -210,10 +246,15 @@ func (f *String) IndentN(level, value any) string {
 	return f.IndentWithN(' ', level, value)
 }
 
-func (*String) Fold(length, value any) string {
+func (f *String) Fold(length, value any) string {
+	return f.FoldBy(length, "", value)
+}
+
+func (*String) FoldBy(length, separator, value any) string {
 	var (
 		str = convert.ToString(value)
 		lnt = convert.ToInt(length)
+		sep = convert.ToString(separator)
 	)
 
 	if lnt <= 0 || str == "" {
@@ -227,30 +268,39 @@ func (*String) Fold(length, value any) string {
 	}
 
 	var (
-		start, chunk int
+		start, count int
 		builder      strings.Builder
 
 		size = len(str)
 	)
 
-	builder.Grow(size + ((total + lnt - 1) / lnt) - 1)
+	builder.Grow(len(str) + utf8.RuneCountInString(str)/lnt)
 
 	for i := 0; i < size; {
 		_, w := utf8.DecodeRuneInString(str[i:])
 
 		i += w
 
-		chunk++
+		count++
 
-		if chunk == lnt {
+		if count < lnt {
+			continue
+		}
+
+		if j := strings.LastIndex(str[start:i], sep); j > 0 {
+			builder.WriteString(str[start : start+j])
+
+			start += j + len(sep)
+			count = utf8.RuneCountInString(str[start:i])
+		} else {
 			builder.WriteString(str[start:i])
 
-			if i < size {
-				builder.WriteByte('\n')
-			}
-
 			start = i
-			chunk = 0
+			count = 0
+		}
+
+		if start < len(str) {
+			builder.WriteByte('\n')
 		}
 	}
 

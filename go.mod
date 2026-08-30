@@ -8,6 +8,7 @@ require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/urfave/cli/v3 v3.11.0
+	golang.org/x/text v0.41.0
 )
 
 require (
