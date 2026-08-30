@@ -24,8 +24,8 @@ func (*Convert) Rune(value any) rune {
 	return convert.ToRune(value)
 }
 
-func (*Convert) Int(value any) int64 {
-	return convert.ToInt64(value)
+func (*Convert) Int(value any) int {
+	return convert.ToInt(value)
 }
 
 func (*Convert) Float(value any) float64 {
@@ -52,8 +52,8 @@ func (*Convert) Strings(value any) []string {
 	return convert.ToStringSlice(value)
 }
 
-func (*Convert) Ints(value any) []int64 {
-	return convert.ToInt64Slice(value)
+func (*Convert) Ints(value any) []int {
+	return convert.ToIntSlice(value)
 }
 
 func (*Convert) Floats(value any) []float64 {
@@ -88,8 +88,8 @@ func (*Convert) StringMap(value any) map[string]string {
 	return convert.ToStringStringMap(value)
 }
 
-func (*Convert) IntMap(value any) map[string]int64 {
-	return convert.ToStringInt64Map(value)
+func (*Convert) IntMap(value any) map[string]int {
+	return convert.ToStringIntMap(value)
 }
 
 func (*Convert) FloatMap(value any) map[string]float64 {
