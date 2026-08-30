@@ -2,7 +2,6 @@ package functions
 
 import (
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -14,12 +13,6 @@ import (
 	"github.com/JFAexe/tem/pkg/reflection"
 )
 
-var (
-	ErrEmptyObject         = errors.New("can't select value from empty object")
-	ErrUpperNegativeOrZero = errors.New("upper boundary must be greater than 0")
-	ErrLowerGreaterEqual   = errors.New("lower boundary must be less than upper boundary")
-	ErrRangeTooLarge       = errors.New("range is too large")
-)
 
 var one = big.NewInt(1)
 

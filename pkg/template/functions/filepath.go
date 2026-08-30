@@ -7,11 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/bmatcuk/doublestar/v4"
-)
 
-var ErrEmptyPath = errors.New("can't walk empty path")
+	"github.com/JFAexe/tem/pkg/convert"
+)
 
 type WalkInfo struct {
 	Name    string
