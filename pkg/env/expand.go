@@ -1,12 +1,20 @@
 package env
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
+
+var (
+	ErrUnset       = errors.New("parameter is null or not set")
+	ErrEmptyName   = fmt.Errorf("empty variable name")
+	ErrExpandDepth = errors.New("expansion depth limit exceeded")
+)
+
+const maxExpandDepth = 16
 
 var expandOps = []string{
 	":-", "-",
@@ -15,13 +23,18 @@ var expandOps = []string{
 	":?", "?",
 }
 
-func RawExpand(value string, lookup LookupFunc) string {
-	if !strings.Contains(value, "$") {
-		return value
+type expander struct {
+	lookup LookupFunc
+	depth  int
+}
+
+func (e *expander) expand(value string) (string, error) {
+	if e.depth > maxExpandDepth {
+		return "", fmt.Errorf("%w (%d)", ErrExpandDepth, maxExpandDepth)
 	}
 
-	if lookup == nil {
-		lookup = noopLookup
+	if !strings.Contains(value, "$") {
+		return value, nil
 	}
 
 	var (
@@ -80,14 +93,19 @@ func RawExpand(value string, lookup LookupFunc) string {
 				break
 			}
 
-			out.WriteString(expandBrace(value[s:j], lookup))
+			v, err := e.expandBrace(value[s:j])
+			if err != nil {
+				return "", err
+			}
+
+			out.WriteString(v)
 
 			i = j + 1
 
 			continue
 		}
 
-		if isVarStart(nr) {
+		if unicode.IsLetter(nr) || nr == '_' {
 			var (
 				s = i + 1
 				j = s + ns
@@ -96,14 +114,17 @@ func RawExpand(value string, lookup LookupFunc) string {
 			for j < n {
 				rj, sj := utf8.DecodeRuneInString(value[j:])
 
-				if !isVarPart(rj) {
+				if !unicode.IsLetter(rj) && !unicode.IsDigit(rj) && rj != '_' {
 					break
 				}
 
 				j += sj
 			}
 
-			v, _ := lookup(value[s:j])
+			v, err := e.fetch(value[s:j])
+			if err != nil {
+				return "", err
+			}
 
 			out.WriteString(v)
 
@@ -117,10 +138,19 @@ func RawExpand(value string, lookup LookupFunc) string {
 		i += size
 	}
 
-	return out.String()
+	return out.String(), nil
 }
 
-func expandBrace(expr string, lookup LookupFunc) string {
+func (e *expander) fetch(name string) (string, error) {
+	v, ok := e.lookup(name)
+	if !ok {
+		return "", nil
+	}
+
+	return (&expander{lookup: e.lookup, depth: e.depth + 1}).expand(v)
+}
+
+func (e *expander) expandBrace(expr string) (string, error) {
 	var (
 		op string
 
@@ -136,87 +166,95 @@ func expandBrace(expr string, lookup LookupFunc) string {
 	}
 
 	if idx <= 0 {
-		val, _ := lookup(strings.TrimSpace(expr))
-
-		return val
+		return e.fetch(strings.TrimSpace(expr))
 	}
 
 	var (
 		name    = strings.TrimSpace(expr[:idx])
-		value   = expr[idx+len(op):]
-		val, ok = lookup(name)
+		word    = expr[idx+len(op):]
+		val, ok = e.lookup(name)
 		unset   = !ok
 		empty   = ok && val == ""
 	)
 
 	switch op {
 	case ":-":
+		if name == "" {
+			return "", ErrEmptyName
+		}
+
 		if unset || empty {
-			return value
+			return e.expand(word)
 		}
 	case "-":
 		if unset {
-			return value
+			return e.expand(word)
 		}
 	case ":=":
 		if unset || empty {
-			if err := Set(name, RawExpand(value, lookup)); err != nil {
-				exit(name, "failed to set env")
+			w, err := e.expand(word)
+			if err != nil {
+				return "", err
 			}
 
-			return value
+			if err := Set(name, w); err != nil {
+				return "", fmt.Errorf("expand %s: %w", name, err)
+			}
+
+			return w, nil
 		}
 	case "=":
 		if unset {
-			if err := Set(name, RawExpand(value, lookup)); err != nil {
-				exit(name, "failed to set env")
+			w, err := e.expand(word)
+			if err != nil {
+				return "", err
 			}
 
-			return value
+			if err := Set(name, w); err != nil {
+				return "", fmt.Errorf("expand %s: %w", name, err)
+			}
+
+			return w, nil
 		}
 	case ":+":
 		if !unset && !empty {
-			return value
+			return e.expand(word)
 		}
 
-		return ""
+		return "", nil
 	case "+":
 		if !unset {
-			return value
+			return e.expand(word)
 		}
 
-		return ""
+		return "", nil
 	case ":?":
 		if unset || empty {
-			exit(name, value)
+			msg, err := e.expand(word)
+			if err != nil {
+				return "", err
+			}
+
+			if msg == "" {
+				msg = "parameter is null or not set"
+			}
+
+			return "", fmt.Errorf("%w: %s: %s", ErrUnset, name, msg)
 		}
 	case "?":
 		if unset {
-			exit(name, value)
+			msg, err := e.expand(word)
+			if err != nil {
+				return "", err
+			}
+
+			if msg == "" {
+				msg = "parameter is null or not set"
+			}
+
+			return "", fmt.Errorf("%w: %s: %s", ErrUnset, name, msg)
 		}
 	}
 
-	return val
-}
-
-func noopLookup(value string) (string, bool) {
-	return value, true
-}
-
-func isVarStart(r rune) bool {
-	return unicode.IsLetter(r) || r == '_'
-}
-
-func isVarPart(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
-}
-
-func exit(name, message string) {
-	if message == "" {
-		message = "parameter is null or not set"
-	}
-
-	fmt.Fprintf(os.Stderr, "%s: %s: %s\n", os.Args[0], name, message)
-
-	os.Exit(1)
+	return val, nil
 }

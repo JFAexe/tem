@@ -6,7 +6,10 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strings"
 )
+
+var quoteReplacer = strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 
 type EncoderOption func(e *Encoder)
 
@@ -32,7 +35,7 @@ func NewEncoder(w io.Writer, options ...EncoderOption) *Encoder {
 	e := &Encoder{
 		w:      w,
 		expand: true,
-		lookup: Lookup,
+		lookup: RawLookup,
 	}
 
 	for _, option := range options {
@@ -52,16 +55,21 @@ func (e *Encoder) Encode(v any) error {
 
 	for i, key := range slices.Sorted(maps.Keys(m)) {
 		if i > 0 {
-			fmt.Fprint(&buf, "\n")
+			buf.WriteByte('\n')
 		}
 
 		val := m[key]
 
 		if e.expand {
-			val = RawExpand(val, e.lookup)
+			expanded, err := RawExpand(val, e.lookup)
+			if err != nil {
+				return fmt.Errorf("failed to expand value %#q: %w", val, err)
+			}
+
+			val = expanded
 		}
 
-		fmt.Fprintf(&buf, "%s=%q", ToKey(key), val)
+		fmt.Fprintf(&buf, `%s="%s"`, ToKey(key), quoteReplacer.Replace(val))
 	}
 
 	if _, err := buf.WriteTo(e.w); err != nil {
@@ -71,7 +79,11 @@ func (e *Encoder) Encode(v any) error {
 	return nil
 }
 
-func Marshal(value Map, options ...EncoderOption) ([]byte, error) {
+func Marshal(value Map) ([]byte, error) {
+	return MarshalOptions(value)
+}
+
+func MarshalOptions(value Map, options ...EncoderOption) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	if err := NewEncoder(buf, options...).Encode(value); err != nil {

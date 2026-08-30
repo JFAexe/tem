@@ -10,7 +10,6 @@ type (
 	Map = map[string]string
 
 	LookupFunc func(value string) (string, bool)
-	ExpandFunc func(value string) string
 )
 
 func Escape(value string) string {
@@ -31,18 +30,37 @@ func ToKey(key string) string {
 	}, strings.TrimSpace(key))
 }
 
-func Expand(value string) string {
-	return RawExpand(value, Lookup)
-}
-
-func Environ() (Map, error) {
-	envs := make(Map)
-
-	if err := Unmarshal([]byte(strings.Join(os.Environ(), "\n")), &envs, WithDecoderExpand(false)); err != nil {
-		return nil, err
+func RawExpand(value string, lookup LookupFunc) (string, error) {
+	if !strings.Contains(value, "$") {
+		return value, nil
 	}
 
-	return envs, nil
+	if lookup == nil {
+		lookup = func(string) (string, bool) {
+			return "", false
+		}
+	}
+
+	return (&expander{lookup: lookup}).expand(value)
+}
+
+func Expand(value string) (string, error) {
+	return RawExpand(value, RawLookup)
+}
+
+func Environ() Map {
+	var (
+		raw = os.Environ()
+		out = make(Map, len(raw))
+	)
+
+	for _, e := range raw {
+		k, v, _ := strings.Cut(e, "=")
+
+		out[ToKey(k)] = v
+	}
+
+	return out
 }
 
 func Set(key, value string) error {
@@ -88,11 +106,17 @@ func RawLookup(key string) (string, bool) {
 }
 
 func Lookup(key string) (string, bool) {
-	if value, ok := RawLookup(key); ok {
-		return Expand(value), true
+	v, ok := RawLookup(key)
+	if !ok {
+		return "", false
 	}
 
-	return "", false
+	v, err := RawExpand(v, RawLookup)
+	if err != nil {
+		return "", false
+	}
+
+	return v, true
 }
 
 func RawGet(key string) string {

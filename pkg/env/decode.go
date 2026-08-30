@@ -6,14 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
 var (
-	ErrNotPair         = errors.New("not a key-value pair")
 	ErrBadKey          = errors.New("bad key")
 	ErrUnmatchedQuote  = errors.New("unmatched quote in value")
 	ErrInvalidEncoding = errors.New("invalid UTF-8 string")
@@ -43,7 +44,7 @@ func NewDecoder(r io.Reader, options ...DecoderOption) *Decoder {
 	d := &Decoder{
 		r:      r,
 		expand: true,
-		lookup: Lookup,
+		lookup: RawLookup,
 	}
 
 	for _, option := range options {
@@ -109,40 +110,24 @@ func (d *Decoder) decode() (Map, error) {
 		multilineKey string
 		rawValue     strings.Builder
 
-		out     = make(Map)
+		raw     = make(Map)
 		scanner = bufio.NewScanner(d.r)
 	)
 
-	lookup := func(key string) (string, bool) {
-		key = ToKey(key)
-
-		if val, ok := out[key]; ok {
-			return val, true
-		}
-
-		if d.lookup != nil {
-			return d.lookup(key)
-		}
-
-		return "", false
-	}
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 
 	save := func(key, val string) {
-		if d.expand {
-			val = RawExpand(val, lookup)
-		}
-
-		out[key] = val
+		raw[key] = val
 	}
 
 	flush := func() {
 		rawValue.WriteRune(quote)
 
-		raw := rawValue.String()
+		r := rawValue.String()
 
-		parsed, err := ParseValue(raw)
+		parsed, err := ParseValue(r)
 		if err != nil {
-			parsed = strings.TrimPrefix(raw, string(quote))
+			parsed = strings.TrimPrefix(r, string(quote))
 		}
 
 		save(multilineKey, parsed)
@@ -221,11 +206,44 @@ func (d *Decoder) decode() (Map, error) {
 		return nil, err
 	}
 
+	if !d.expand {
+		return raw, nil
+	}
+
+	out := make(Map, len(raw))
+
+	lookup := func(key string) (string, bool) {
+		key = ToKey(key)
+
+		if v, ok := raw[key]; ok {
+			return v, true
+		}
+
+		if d.lookup != nil {
+			return d.lookup(key)
+		}
+
+		return "", false
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(raw)) {
+		val, err := RawExpand(raw[key], lookup)
+		if err != nil {
+			return nil, fmt.Errorf("expand %s: %w", key, err)
+		}
+
+		out[key] = val
+	}
+
 	return out, nil
 }
 
-func Unmarshal(data []byte, v any, options ...DecoderOption) error {
-	if err := NewDecoder(bytes.NewReader(data), options...).Decode(v); err != nil && !errors.Is(err, io.EOF) {
+func Unmarshal(data []byte, v any) error {
+	return UnmarshalOptions(data, v)
+}
+
+func UnmarshalOptions(data []byte, v any, options ...DecoderOption) error {
+	if err := NewDecoder(bytes.NewReader(data), options...).Decode(v); err != nil {
 		return err
 	}
 
@@ -248,23 +266,6 @@ func ParseMap(e Map) (m Map, err error) {
 	}
 
 	return m, nil
-}
-
-func ParseLine(line string) (key, val string, err error) {
-	key, val, ok := strings.Cut(line, "=")
-	if !ok {
-		return "", "", ErrNotPair
-	}
-
-	if key, err = ParseKey(key); err != nil {
-		return "", "", err
-	}
-
-	if val, err = ParseValue(val); err != nil {
-		return "", "", err
-	}
-
-	return key, val, nil
 }
 
 func ParseKey(s string) (string, error) {
@@ -363,11 +364,7 @@ func parseQuotedValue(s string) (string, error) {
 
 		if r == quote {
 			if remaining := s[pos+w:]; remaining != "" {
-				if before, _, ok := strings.Cut(remaining, "#"); ok && !isSpace(before) {
-					return "", fmt.Errorf("unexpected characters after closing quote: %#q", remaining)
-				}
-
-				if !isSpace(remaining) {
+				if remaining := s[pos+w:]; remaining != "" && !isSpace(remaining) {
 					return "", fmt.Errorf("unexpected characters after closing quote: %#q", remaining)
 				}
 			}
