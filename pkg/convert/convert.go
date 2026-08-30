@@ -1,9 +1,11 @@
 package convert
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"reflect"
 	"strconv"
 	"time"
@@ -79,6 +81,8 @@ func ToBool(value any) bool {
 		return !v.UTC().IsZero()
 	case uuid.UUID:
 		return v != uuid.Nil()
+	case net.IP:
+		return v != nil && !v.IsUnspecified()
 	case error:
 		return boolFromString(v.Error())
 	case fmt.Stringer:
@@ -324,6 +328,12 @@ func ToInt64(value any) int64 {
 		return int64(v)
 	case time.Time:
 		return v.UTC().Unix()
+	case net.IP:
+		if ip4 := v.To4(); ip4 != nil {
+			return int64(binary.BigEndian.Uint32(ip4))
+		}
+
+		return 0
 	case error:
 		return ToInt64(v.Error())
 	case fmt.Stringer:
@@ -419,6 +429,12 @@ func ToUint64(value any) uint64 {
 		return SafeIntToUint64(v)
 	case time.Time:
 		return SafeIntToUint64(v.UTC().Unix())
+	case net.IP:
+		if ip4 := v.To4(); ip4 != nil {
+			return uint64(binary.BigEndian.Uint32(ip4))
+		}
+
+		return 0
 	case error:
 		return ToUint64(v.Error())
 	case fmt.Stringer:
@@ -718,6 +734,67 @@ func ToUUID(value any) uuid.UUID {
 	return uuidFromString(ToString(value))
 }
 
+func ToIP(value any) net.IP {
+	if value == nil {
+		return nil
+	}
+
+	switch v := value.(type) {
+	case net.IP:
+		if ip4 := v.To4(); ip4 != nil {
+			return ip4
+		}
+
+		return v
+	case int, int32, int64:
+		if i := ToInt64(value); i >= 0 && i <= 0xFFFFFFFF {
+			return ipFromNumber(SafeIntToUint64(i))
+		}
+	case uint, uint32, uint64:
+		if u := ToUint64(value); u <= 0xFFFFFFFF {
+			return ipFromNumber(u)
+		}
+	case string:
+		return net.ParseIP(v)
+	case []byte:
+		if len(v) == 4 || len(v) == 16 {
+			ip := net.IP(v)
+
+			if ip4 := ip.To4(); ip4 != nil {
+				return ip4
+			}
+
+			return ip
+		}
+
+		return net.ParseIP(string(v))
+	case []rune:
+		return net.ParseIP(string(v))
+	case fmt.Stringer:
+		return net.ParseIP(v.String())
+	}
+
+	rv := reflection.IndirectValue(value)
+	if !rv.IsValid() {
+		return nil
+	}
+
+	switch rv.Kind() {
+	case reflect.String:
+		return net.ParseIP(rv.String())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if i := rv.Int(); i >= 0 && i <= 0xFFFFFFFF {
+			return ipFromNumber(SafeIntToUint64(i))
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if u := rv.Uint(); u <= 0xFFFFFFFF {
+			return ipFromNumber(u)
+		}
+	}
+
+	return net.ParseIP(ToString(value))
+}
+
 func boolFromString(s string) bool {
 	if b, err := strconv.ParseBool(s); err == nil {
 		return b
@@ -898,4 +975,12 @@ func uuidFromString(s string) uuid.UUID {
 	}
 
 	return uuid.Nil()
+}
+
+func ipFromNumber(v uint64) net.IP {
+	ip := make(net.IP, 4)
+
+	binary.BigEndian.PutUint32(ip, SafeUint32(v))
+
+	return ip
 }

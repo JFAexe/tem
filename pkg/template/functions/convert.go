@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"net"
 	"time"
 	"uuid"
 
@@ -73,6 +74,10 @@ func (*Convert) UUIDs(value any) []uuid.UUID {
 	return convert.ToUUIDSlice(value)
 }
 
+func (*Convert) IPs(value any) []net.IP {
+	return convert.ToIPSlice(value)
+}
+
 func (*Convert) Runes(value any) []rune {
 	return convert.ToRuneSlice(value)
 }
@@ -111,4 +116,8 @@ func (*Convert) TimeMap(value any) map[string]time.Time {
 
 func (*Convert) UUIDMap(value any) map[string]uuid.UUID {
 	return convert.ToStringUUIDMap(value)
+}
+
+func (*Convert) IPMap(value any) map[string]net.IP {
+	return convert.ToStringIPMap(value)
 }

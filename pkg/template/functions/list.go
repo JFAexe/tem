@@ -484,6 +484,10 @@ func equalAny(a, b any) bool {
 		if b, ok := b.(uuid.UUID); ok {
 			return a.Compare(b) == 0
 		}
+	case net.IP:
+		if b, ok := b.(net.IP); ok {
+			return a.Equal(b)
+		}
 	}
 
 	return reflection.Compare(reflect.ValueOf(a), reflect.ValueOf(b))

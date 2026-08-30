@@ -78,6 +78,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"map":        NamespaceVararg(new(Map), MapVarargInit),
 		"math":       Namespace(new(Math)),
 		"path":       Namespace(new(Path)),
+		"net":        Namespace(new(Net)),
 		"random":     Namespace(new(Random)),
 		"regex":      Namespace(new(Regex)),
 		"rune":       Namespace(new(Rune)),

@@ -1,6 +1,7 @@
 package convert
 
 import (
+	"net"
 	"reflect"
 	"slices"
 	"strconv"
@@ -123,6 +124,10 @@ func ToUUIDSlice(value any) []uuid.UUID {
 	return ToSlice(value, ToUUID)
 }
 
+func ToIPSlice(value any) []net.IP {
+	return ToSlice(value, ToIP)
+}
+
 func ToRuneSlice(value any) []rune {
 	switch v := value.(type) {
 	case nil:
@@ -239,6 +244,8 @@ func ToByteSlice(value any) []byte {
 		return []byte(strconv.FormatBool(v))
 	case uuid.UUID:
 		return v[:]
+	case net.IP:
+		return slices.Clone(v)
 	}
 
 	return []byte(ToString(value))

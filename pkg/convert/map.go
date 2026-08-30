@@ -1,6 +1,7 @@
 package convert
 
 import (
+	"net"
 	"reflect"
 	"time"
 	"uuid"
@@ -118,4 +119,8 @@ func ToStringTimeMap(value any) map[string]time.Time {
 
 func ToStringUUIDMap(value any) map[string]uuid.UUID {
 	return ToMap(value, ToString, ToUUID)
+}
+
+func ToStringIPMap(value any) map[string]net.IP {
+	return ToMap(value, ToString, ToIP)
 }
