@@ -3,75 +3,80 @@ package functions
 import (
 	"fmt"
 	"regexp"
-	"sync"
 
+	"github.com/JFAexe/tem/pkg/cache"
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
-var regexCache sync.Map
+var regexCache = cache.NewSyncCache[string, *regexp.Regexp]()
 
 type Regex struct{}
 
-func (*Regex) Escape(str any) string {
-	return regexp.QuoteMeta(convert.ToString(str))
+func (*Regex) Escape(value any) string {
+	return regexp.QuoteMeta(convert.ToString(value))
 }
 
-func (*Regex) Match(regex, str any) (bool, error) {
+func (*Regex) Match(regex, value any) (bool, error) {
 	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return false, err
 	}
 
-	return exp.MatchString(convert.ToString(str)), nil
+	return exp.MatchString(convert.ToString(value)), nil
 }
 
-func (*Regex) Find(regex, str any) (string, error) {
+func (*Regex) Find(regex, value any) (string, error) {
 	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return "", err
 	}
 
-	return exp.FindString(convert.ToString(str)), nil
+	return exp.FindString(convert.ToString(value)), nil
 }
 
-func (*Regex) FindAll(regex, n, str any) ([]string, error) {
+func (*Regex) FindAll(regex, n, value any) ([]string, error) {
 	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return make([]string, 0), err
 	}
 
-	return exp.FindAllString(convert.ToString(str), convert.ToInt(n)), nil
+	return exp.FindAllString(convert.ToString(value), convert.ToInt(n)), nil
 }
 
-func (*Regex) Replace(regex, rpl, str any) (string, error) {
+func (*Regex) Replace(regex, replacement, value any) (string, error) {
 	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return "", err
 	}
 
-	return exp.ReplaceAllString(convert.ToString(str), convert.ToString(rpl)), nil
+	return exp.ReplaceAllString(convert.ToString(value), convert.ToString(replacement)), nil
 }
 
-func (*Regex) Split(regex, n, str any) ([]string, error) {
+func (*Regex) ReplaceLiteral(regex, replacement, value any) (string, error) {
+	exp, err := cachedRegex(convert.ToString(regex))
+	if err != nil {
+		return "", err
+	}
+
+	return exp.ReplaceAllLiteralString(convert.ToString(value), convert.ToString(replacement)), nil
+}
+
+func (*Regex) Split(regex, n, value any) ([]string, error) {
 	exp, err := cachedRegex(convert.ToString(regex))
 	if err != nil {
 		return make([]string, 0), err
 	}
 
-	return exp.Split(convert.ToString(str), convert.ToInt(n)), nil
+	return exp.Split(convert.ToString(value), convert.ToInt(n)), nil
 }
 
 func cachedRegex(regex string) (*regexp.Regexp, error) {
-	if exp, ok := regexCache.Load(regex); ok {
-		return exp.(*regexp.Regexp), nil
-	}
+	return regexCache.Get(regex, func() (*regexp.Regexp, error) {
+		exp, err := regexp.Compile(regex)
+		if err != nil {
+			return nil, fmt.Errorf("compile regex %#q: %w", regex, err)
+		}
 
-	exp, err := regexp.Compile(regex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile regex: %w", err)
-	}
-
-	regexCache.Store(regex, exp)
-
-	return exp, nil
+		return exp, nil
+	})
 }

@@ -1,32 +1,33 @@
 package functions
 
 import (
+	"fmt"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/JFAexe/tem/pkg/cache"
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
 var layouts = map[string]string{
-	"ansic":    time.ANSIC,
-	"unix":     time.UnixDate,
-	"ruby":     time.RubyDate,
-	"822":      time.RFC822,
-	"822z":     time.RFC822Z,
-	"850":      time.RFC850,
-	"1123":     time.RFC1123,
-	"1123z":    time.RFC1123Z,
-	"3339":     time.RFC3339,
-	"3339nano": time.RFC3339Nano,
-	"kitchen":  time.Kitchen,
-	"stamp":    time.Stamp,
-	"datetime": time.DateTime,
-	"date":     time.DateOnly,
-	"time":     time.TimeOnly,
+	"ansic":       time.ANSIC,
+	"unixdate":    time.UnixDate,
+	"ruby":        time.RubyDate,
+	"rfc822":      time.RFC822,
+	"rfc822z":     time.RFC822Z,
+	"rfc850":      time.RFC850,
+	"rfc1123":     time.RFC1123,
+	"rfc1123z":    time.RFC1123Z,
+	"rfc3339":     time.RFC3339,
+	"rfc3339nano": time.RFC3339Nano,
+	"kitchen":     time.Kitchen,
+	"stamp":       time.Stamp,
+	"datetime":    time.DateTime,
+	"date":        time.DateOnly,
+	"time":        time.TimeOnly,
 }
 
-var timeCache sync.Map
+var locationCache = cache.NewSyncCache[string, *time.Location]()
 
 type Time struct{}
 
@@ -35,11 +36,15 @@ func (*Time) Now() time.Time {
 }
 
 func (*Time) Parse(layout, value any) (time.Time, error) {
-	return time.Parse(convert.ToString(value), convert.ToString(layout))
+	if l, ok := layouts[normalizeString(value)]; ok {
+		layout = l
+	}
+
+	return time.Parse(convert.ToString(layout), convert.ToString(value))
 }
 
 func (*Time) In(zone, value any) (time.Time, error) {
-	loc, err := cachedTime(convert.ToString(zone))
+	loc, err := cachedLocation(convert.ToString(zone))
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -48,12 +53,16 @@ func (*Time) In(zone, value any) (time.Time, error) {
 }
 
 func (*Time) ParseIn(layout, zone, value any) (time.Time, error) {
-	loc, err := cachedTime(convert.ToString(zone))
+	if l, ok := layouts[normalizeString(value)]; ok {
+		layout = l
+	}
+
+	loc, err := cachedLocation(convert.ToString(zone))
 	if err != nil {
 		return time.Time{}, err
 	}
 
-	return time.ParseInLocation(convert.ToString(value), convert.ToString(layout), loc)
+	return time.ParseInLocation(convert.ToString(layout), convert.ToString(value), loc)
 }
 
 func (*Time) Offset(offset, value any) time.Time {
@@ -93,6 +102,10 @@ func (*Time) IsZero(value any) bool {
 }
 
 func (*Time) Format(format, value any) string {
+	if l, ok := layouts[normalizeString(value)]; ok {
+		format = l
+	}
+
 	return convert.ToTime(value).Format(convert.ToString(format))
 }
 
@@ -100,20 +113,20 @@ func (*Time) ToString(value any) string {
 	return convert.ToTime(value).Format(time.RFC3339)
 }
 
-func (*Time) ToTime(value any) string {
+func (*Time) ToUnix(value any) int64 {
+	return convert.ToTime(value).Unix()
+}
+
+func (*Time) AsTime(value any) string {
 	return convert.ToTime(value).Format(time.TimeOnly)
 }
 
-func (*Time) ToDate(value any) string {
+func (*Time) AsDate(value any) string {
 	return convert.ToTime(value).Format(time.DateOnly)
 }
 
-func (*Time) ToDateTime(value any) string {
+func (*Time) AsDateTime(value any) string {
 	return convert.ToTime(value).Format(time.DateTime)
-}
-
-func (*Time) ToUnix(value any) int64 {
-	return convert.ToTime(value).Unix()
 }
 
 func (*Time) Difference(other, value any) time.Duration {
@@ -128,25 +141,21 @@ func (*Time) Until(value any) time.Duration {
 	return time.Until(convert.ToTime(value))
 }
 
-func (*Time) Layout(value any) string {
-	if layout, ok := layouts[strings.ToLower(convert.ToString(value))]; ok {
-		return layout
+func (*Time) Layout(value any) (string, error) {
+	k := normalizeString(value)
+
+	layout, ok := layouts[k]
+	if !ok {
+		return "", fmt.Errorf("invalid layout %#q, supported: %s", k, joinKeys(layouts))
 	}
 
-	return time.RFC3339
+	return layout, nil
 }
 
-func cachedTime(zone string) (*time.Location, error) {
-	if loc, ok := timeCache.Load(zone); ok {
-		return loc.(*time.Location), nil
-	}
+func cachedLocation(zone string) (*time.Location, error) {
+	zone = strings.TrimSpace(zone)
 
-	loc, err := time.LoadLocation(zone)
-	if err != nil {
-		return nil, err
-	}
-
-	timeCache.Store(zone, loc)
-
-	return loc, nil
+	return locationCache.Get(zone, func() (*time.Location, error) {
+		return time.LoadLocation(zone)
+	})
 }

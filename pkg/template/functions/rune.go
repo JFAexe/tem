@@ -4,67 +4,63 @@ import (
 	"fmt"
 	"regexp/syntax"
 	"strings"
-	"sync"
 	"unicode"
 
+	"github.com/JFAexe/tem/pkg/cache"
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
-var runeRangeCache, runeRegexCache sync.Map
+var (
+	runeRangeCache = cache.NewSyncCache[runeRange, []rune]()
+	runeRegexCache = cache.NewSyncCache[string, []rune]()
+)
 
 type runeRange struct{ lo, hi rune }
 
 type Rune struct{}
 
 func (f *Rune) RangeSet(lower, upper any) []rune {
-	return rangeSet(lower, upper)
+	return cachedRangeSet(lower, upper)
 }
 
 func (f *Rune) RegexSet(pattern any) ([]rune, error) {
-	return cachedRunes(strings.TrimSpace(convert.ToString(pattern)))
+	return cachedRegexSet(strings.TrimSpace(convert.ToString(pattern)))
 }
 
-func cachedRunes(key any) (set []rune, err error) {
-	switch k := key.(type) {
-	case runeRange:
-		if val, ok := runeRangeCache.Load(k); ok {
-			return val.([]rune), nil
-		}
-
-		set = expandRange(k.lo, k.hi)
-
-		runeRangeCache.Store(k, set)
-	case string:
-		if val, ok := runeRegexCache.Load(k); ok {
-			return val.([]rune), nil
-		}
-
-		if set = fromUnicode(k); set != nil {
-			runeRegexCache.Store(k, set)
-
-			return set, nil
-		}
-
-		if set, err = syntaxSet(k); err != nil {
-			return nil, err
-		}
-
-		runeRegexCache.Store(k, set)
-	}
-
-	return set, nil
-}
-
-func rangeSet(lower, upper any) []rune {
+func cachedRangeSet(lower, upper any) []rune {
 	var (
-		lr     = convert.ToRune(lower)
-		ur     = convert.ToRune(upper)
-		lo     = min(lr, ur)
-		hi     = max(lr, ur)
-		set, _ = cachedRunes(runeRange{lo, hi})
+		lr  = convert.ToRune(lower)
+		ur  = convert.ToRune(upper)
+		lo  = min(lr, ur)
+		hi  = max(lr, ur)
+		key = runeRange{lo, hi}
 	)
 
+	set, _ := runeRangeCache.Get(key, func() ([]rune, error) {
+		return expandRange(lo, hi), nil
+	})
+
 	return set
+}
+
+func cachedRegexSet(key string) ([]rune, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, fmt.Errorf("failed to compute set: %w", ErrEmptyRegex)
+	}
+
+	return runeRegexCache.Get(key, func() ([]rune, error) {
+		if s := fromUnicode(key); s != nil {
+			return s, nil
+		}
+
+		set, err := syntaxSet(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute set: %w", err)
+		}
+
+		return set, nil
+	})
 }
 
 func syntaxSet(pattern string) ([]rune, error) {
@@ -95,34 +91,35 @@ func syntaxSet(pattern string) ([]rune, error) {
 
 		return []rune{re.Rune[0]}, nil
 	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
-		return rangeSet(0, unicode.MaxRune), nil
+		return cachedRangeSet(0, unicode.MaxRune), nil
 	default:
 		return nil, fmt.Errorf("pattern %#q is not a simple character set (op: %s)", pattern, re.Op)
 	}
 }
 
 func fromUnicode(pattern string) []rune {
-	name := strings.TrimSpace(pattern)
-
-	if strings.HasPrefix(name, `\p{`) && strings.HasSuffix(name, `}`) {
-		name = name[3 : len(name)-1]
-	} else if strings.HasPrefix(name, `[\p{`) && strings.HasSuffix(name, `}]`) {
-		name = name[4 : len(name)-2]
-	}
-
-	if name == "" {
+	switch {
+	case strings.HasPrefix(pattern, `[\p{`) && strings.HasSuffix(pattern, `}]`):
+		pattern = pattern[4 : len(pattern)-2]
+	case strings.HasPrefix(pattern, `\p{`) && strings.HasSuffix(pattern, `}`):
+		pattern = pattern[3 : len(pattern)-1]
+	default:
 		return nil
 	}
 
-	if rt, ok := unicode.Scripts[name]; ok {
+	if pattern == "" {
+		return nil
+	}
+
+	if rt, ok := unicode.Scripts[pattern]; ok {
 		return expandTable(rt)
 	}
 
-	if rt, ok := unicode.Categories[name]; ok {
+	if rt, ok := unicode.Categories[pattern]; ok {
 		return expandTable(rt)
 	}
 
-	if rt, ok := unicode.Properties[name]; ok {
+	if rt, ok := unicode.Properties[pattern]; ok {
 		return expandTable(rt)
 	}
 
@@ -130,11 +127,7 @@ func fromUnicode(pattern string) []rune {
 }
 
 func expandRange(lo, hi rune) []rune {
-	if hi < lo {
-		lo, hi = hi, lo
-	}
-
-	runes := make([]rune, 0, int(hi-lo)+1)
+	runes := make([]rune, 0, int(hi-lo)/4+16)
 
 	for r := lo; r <= hi; r++ {
 		if unicode.IsGraphic(r) {

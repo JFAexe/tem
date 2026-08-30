@@ -378,3 +378,7 @@ func render(t *template.Template, name string, data ...any) (string, error) {
 
 	return buf.String(), nil
 }
+
+func normalizeString(value any) string {
+	return strings.ToLower(strings.TrimSpace(convert.ToString(value)))
+}
