@@ -23,36 +23,28 @@ func (*Env) ToKey(key any) string {
 	return env.ToKey(convert.ToString(key))
 }
 
-func (*Env) Expand(value any) string {
+func (*Env) Expand(value any) (string, error) {
 	return env.Expand(convert.ToString(value))
 }
 
-func (*Env) Map() (env.Map, error) {
+func (*Env) Map() env.Map {
 	return env.Environ()
 }
 
-func (*Env) Set(key, value any) (bool, error) {
-	err := env.Set(convert.ToString(key), convert.ToString(value))
-
-	return err == nil, err
+func (*Env) Set(key, value any) (string, error) {
+	return "", env.Set(convert.ToString(key), convert.ToString(value))
 }
 
-func (*Env) BatchSet(m any) (bool, error) {
-	err := env.BatchSet(convert.ToStringStringMap(m))
-
-	return err == nil, err
+func (*Env) BatchSet(m any) (string, error) {
+	return "", env.BatchSet(convert.ToStringStringMap(m))
 }
 
-func (*Env) Unset(key any) (bool, error) {
-	err := env.Unset(convert.ToString(key))
-
-	return err == nil, err
+func (*Env) Unset(key any) (string, error) {
+	return "", env.Unset(convert.ToString(key))
 }
 
-func (*Env) BatchUnset(keys ...any) (bool, error) {
-	err := env.BatchUnset(convert.ToStringSlice(listConcat(keys...)))
-
-	return err == nil, err
+func (*Env) BatchUnset(keys ...any) (string, error) {
+	return "", env.BatchUnset(convert.ToStringSlice(listConcat(keys...)))
 }
 
 func (*Env) IsSet(key any) bool {
