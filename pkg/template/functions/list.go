@@ -2,6 +2,9 @@ package functions
 
 import (
 	"cmp"
+	"encoding/json"
+	"fmt"
+	"net"
 	"reflect"
 	"slices"
 	"strings"
@@ -21,8 +24,57 @@ func (*List) New(values ...any) []any {
 	return values
 }
 
+func (*List) Range(args ...any) []int {
+	var lower, upper, step int64
+
+	switch len(args) {
+	case 0:
+		return make([]int, 0)
+	case 1:
+		upper = convert.ToInt64(args[0])
+		step = 1
+	default:
+		lower = convert.ToInt64(args[0])
+		upper = convert.ToInt64(args[1])
+		step = 1
+
+		if len(args) > 2 {
+			step = convert.ToInt64(args[2])
+		}
+	}
+
+	if step == 0 {
+		return make([]int, 0)
+	}
+
+	if upper < lower && step == 1 {
+		step = -1
+	}
+
+	var count int64
+
+	switch {
+	case step > 0 && upper > lower:
+		count = (upper - lower + step - 1) / step
+	case step < 0 && upper < lower:
+		count = (lower - upper - step - 1) / -step
+	default:
+		return make([]int, 0)
+	}
+
+	count = min(count, maxRangeLength)
+
+	out := make([]int, count)
+
+	for i := int64(0); i < count; i++ {
+		out[i] = int(lower + i*step)
+	}
+
+	return out
+}
+
 func (*List) First(items any) any {
-	rv, ok := sliceReflectValue(items)
+	rv, ok := reflection.SliceValue(items)
 	if !ok || rv.Len() == 0 {
 		return nil
 	}
@@ -31,7 +83,7 @@ func (*List) First(items any) any {
 }
 
 func (*List) Last(items any) any {
-	rv, ok := sliceReflectValue(items)
+	rv, ok := reflection.SliceValue(items)
 	if !ok || rv.Len() == 0 {
 		return nil
 	}
@@ -39,11 +91,127 @@ func (*List) Last(items any) any {
 	return rv.Index(rv.Len() - 1).Interface()
 }
 
-func (*List) Append(item any, values ...any) []any {
+func (*List) Init(items any) []any {
+	if out := convert.ToAnySlice(items); len(out) > 1 {
+		return out[:len(out)-1]
+	}
+
+	return make([]any, 0)
+}
+
+func (*List) Tail(items any) []any {
+	if out := convert.ToAnySlice(items); len(out) > 1 {
+		return out[1:]
+	}
+
+	return make([]any, 0)
+}
+
+func (*List) Where(args ...any) ([]any, error) {
+	items, pred, err := popPredicate(args)
+	if err != nil {
+		return nil, err
+	}
+
+	if !reflection.IsSlice(items) {
+		return nil, fmt.Errorf("where: expected a list, got %T", items)
+	}
+
+	out := make([]any, 0)
+
+	for item, err := range reflection.Values(items) {
+		if err != nil {
+			return nil, fmt.Errorf("where: %w", err)
+		}
+
+		ok, e := pred(item)
+		if e != nil {
+			return nil, fmt.Errorf("where: %w", e)
+		}
+
+		if ok {
+			out = append(out, item)
+		}
+	}
+
+	return out, nil
+}
+
+func (*List) WhereBy(key, value, items any) ([]any, error) {
+	s := convert.ToAnySlice(items)
+
+	out := make([]any, 0, len(s))
+
+	for _, item := range s {
+		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err == nil && equalAny(v.Interface(), value) {
+			out = append(out, item)
+		}
+	}
+
+	return out, nil
+}
+
+func (*List) Remove(args ...any) ([]any, error) {
+	items, pred, err := popPredicate(args)
+	if err != nil {
+		return nil, err
+	}
+
+	if !reflection.IsSlice(items) {
+		return nil, fmt.Errorf("remove: expected a list, got %T", items)
+	}
+
+	out := make([]any, 0)
+
+	for item, err := range reflection.Values(items) {
+		if err != nil {
+			return nil, fmt.Errorf("remove: %w", err)
+		}
+
+		ok, e := pred(item)
+		if e != nil {
+			return nil, fmt.Errorf("remove: %w", e)
+		}
+
+		if !ok {
+			out = append(out, item)
+		}
+	}
+
+	return out, nil
+}
+
+func (*List) RemoveBy(key, value, items any) ([]any, error) {
+	s := convert.ToAnySlice(items)
+
+	out := make([]any, 0, len(s))
+
+	for _, item := range s {
+		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err != nil || !equalAny(v.Interface(), value) {
+			out = append(out, item)
+		}
+	}
+
+	return out, nil
+}
+
+func (*List) Append(args ...any) []any {
+	if len(args) == 0 {
+		return nil
+	}
+
+	item, values := popOne(args)
+
 	return append(convert.ToAnySlice(item), values...)
 }
 
-func (*List) Prepend(item any, values ...any) []any {
+func (*List) Prepend(args ...any) []any {
+	if len(args) == 0 {
+		return nil
+	}
+
+	item, values := popOne(args)
+
 	return append(values, convert.ToAnySlice(item)...)
 }
 
@@ -52,14 +220,7 @@ func (*List) Concat(values ...any) []any {
 }
 
 func (*List) Flatten(items any) []any {
-	var (
-		s   = convert.ToAnySlice(items)
-		out = make([]any, 0, len(s))
-	)
-
-	listFlatten(s, &out)
-
-	return out
+	return listFlatten(convert.ToAnySlice(items))
 }
 
 func (*List) Compact(items any) []any {
@@ -98,7 +259,13 @@ func (*List) SortBy(key, items any) ([]any, error) {
 	pairs := make([]kv, len(out))
 
 	for i, item := range out {
-		pairs[i] = kv{reflection.ExtractKey(item, key), item}
+		var k any
+
+		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err == nil {
+			k = v.Interface()
+		}
+
+		pairs[i] = kv{k, item}
 	}
 
 	slices.SortStableFunc(pairs, func(a, b kv) int { return compareAny(a.key, b.key) })
@@ -127,7 +294,106 @@ func (*List) UniqueBy(key, items any) []any {
 		return s
 	}
 
-	return uniqueBy(s, func(v any) any { return reflection.ExtractKey(v, key) })
+	return uniqueBy(s, func(v any) any {
+		if v, err := reflection.Lookup(reflect.ValueOf(v), key); err == nil {
+			return v.Interface()
+		}
+
+		return &v
+	})
+}
+
+func (*List) Chunk(size, items any) [][]any {
+	var (
+		n = convert.ToInt(size)
+		s = convert.ToAnySlice(items)
+	)
+
+	if n <= 0 || len(s) == 0 {
+		return make([][]any, 0)
+	}
+
+	out := make([][]any, 0, (len(s)+n-1)/n)
+
+	for start := 0; start < len(s); start += n {
+		var (
+			end   = min(start+n, len(s))
+			chunk = make([]any, end-start)
+		)
+
+		copy(chunk, s[start:end])
+
+		out = append(out, chunk)
+	}
+
+	return out
+}
+
+func (*List) Zip(values ...any) [][]any {
+	var (
+		lists  = make([][]any, 0, len(values))
+		minLen = -1
+	)
+
+	for _, v := range values {
+		s := convert.ToAnySlice(v)
+
+		lists = append(lists, s)
+
+		if minLen == -1 || len(s) < minLen {
+			minLen = len(s)
+		}
+	}
+
+	if minLen <= 0 {
+		return make([][]any, 0)
+	}
+
+	out := make([][]any, minLen)
+
+	for i := range out {
+		pair := make([]any, len(lists))
+
+		for j, s := range lists {
+			pair[j] = s[i]
+		}
+
+		out[i] = pair
+	}
+
+	return out
+}
+
+func (*List) Unzip(items any) [][]any {
+	var (
+		width int
+
+		s = convert.ToAnySlice(items)
+	)
+
+	for _, item := range s {
+		if n := len(convert.ToAnySlice(item)); n > width {
+			width = n
+		}
+	}
+
+	out := make([][]any, width)
+
+	if width == 0 {
+		return out
+	}
+
+	for i := range out {
+		out[i] = make([]any, 0, len(s))
+	}
+
+	for _, item := range s {
+		for j, v := range convert.ToAnySlice(item) {
+			out[j] = append(out[j], v)
+		}
+	}
+
+	return out
 }
 
 func listConcat(values ...any) []any {
@@ -140,22 +406,14 @@ func listConcat(values ...any) []any {
 	return slices.Concat(out...)
 }
 
-func listFlatten(items []any, out *[]any) {
-	for _, item := range items {
-		if s, ok := item.([]any); ok {
-			listFlatten(s, out)
+func listFlatten(values []any) []any {
+	out := make([]any, 0, len(values))
 
-			continue
-		}
-
-		if _, ok := sliceReflectValue(item); ok {
-			listFlatten(convert.ToAnySlice(item), out)
-
-			continue
-		}
-
-		*out = append(*out, item)
+	for _, v := range values {
+		out = append(out, convert.ToAnySlice(v)...)
 	}
+
+	return out
 }
 
 func uniqueBy(s []any, key func(any) any) []any {
@@ -199,25 +457,16 @@ func uniqueBy(s []any, key func(any) any) []any {
 	return out
 }
 
-func sliceReflectValue(items any) (reflect.Value, bool) {
-	rv := reflection.IndirectValue(items)
-	if !rv.IsValid() {
-		return rv, false
-	}
-
-	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
-		return rv, true
-	}
-
-	return rv, false
-}
-
 func equalAny(a, b any) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
 
 	switch a := a.(type) {
+	case bool:
+		if b, ok := b.(bool); ok {
+			return a == b
+		}
 	case int:
 		if b, ok := b.(int); ok {
 			return a == b
@@ -226,17 +475,13 @@ func equalAny(a, b any) bool {
 		if b, ok := b.(string); ok {
 			return a == b
 		}
-	case bool:
-		if b, ok := b.(bool); ok {
-			return a == b
-		}
 	case time.Time:
 		if b, ok := b.(time.Time); ok {
 			return a.Equal(b)
 		}
 	}
 
-	return reflection.CompareValues(reflect.ValueOf(a), reflect.ValueOf(b))
+	return reflection.Compare(reflect.ValueOf(a), reflect.ValueOf(b))
 }
 
 func compareAny(a, b any) int {
@@ -249,22 +494,24 @@ func compareAny(a, b any) int {
 		return 1
 	}
 
+	if ja, ok := a.(json.Number); ok {
+		if jb, ok := b.(json.Number); ok {
+			return cmp.Compare(convert.ToFloat64(ja), convert.ToFloat64(jb))
+		}
+	}
+
 	if ta, ok := a.(time.Time); ok {
 		if tb, ok := b.(time.Time); ok {
 			return ta.Compare(tb)
 		}
 	}
 
-	var (
-		ra = reflection.IndirectValue(a)
-		rb = reflection.IndirectValue(b)
-	)
 
-	if (ra.CanInt() || ra.CanUint() || ra.CanFloat()) && (rb.CanInt() || rb.CanUint() || rb.CanFloat()) {
+	if reflection.IsNumber(a) && reflection.IsNumber(b) {
 		return cmp.Compare(convert.ToFloat64(a), convert.ToFloat64(b))
 	}
 
-	if ra.Kind() == reflect.Bool && rb.Kind() == reflect.Bool {
+	if ra, rb := reflection.IndirectValue(a), reflection.IndirectValue(b); ra.Kind() == reflect.Bool && rb.Kind() == reflect.Bool {
 		switch {
 		case ra.Bool() == rb.Bool():
 			return 0
