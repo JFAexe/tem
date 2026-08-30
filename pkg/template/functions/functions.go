@@ -83,6 +83,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"rune":       Namespace(new(Rune)),
 		"string":     Namespace(new(String)),
 		"time":       Namespace(new(Time)),
+		"uuid":       Namespace(new(UUID)),
 	}
 }
 

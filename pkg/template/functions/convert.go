@@ -2,6 +2,7 @@ package functions
 
 import (
 	"time"
+	"uuid"
 
 	"github.com/JFAexe/tem/pkg/convert"
 )
@@ -68,6 +69,10 @@ func (*Convert) Times(value any) []time.Time {
 	return convert.ToTimeSlice(value)
 }
 
+func (*Convert) UUIDs(value any) []uuid.UUID {
+	return convert.ToUUIDSlice(value)
+}
+
 func (*Convert) Runes(value any) []rune {
 	return convert.ToRuneSlice(value)
 }
@@ -102,4 +107,8 @@ func (*Convert) DurationMap(value any) map[string]time.Duration {
 
 func (*Convert) TimeMap(value any) map[string]time.Time {
 	return convert.ToStringTimeMap(value)
+}
+
+func (*Convert) UUIDMap(value any) map[string]uuid.UUID {
+	return convert.ToStringUUIDMap(value)
 }

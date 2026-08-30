@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"time"
+	"uuid"
 
 	"github.com/JFAexe/tem/pkg/reflection"
 )
@@ -116,6 +117,10 @@ func ToDurationSlice(value any) []time.Duration {
 
 func ToTimeSlice(value any) []time.Time {
 	return ToSlice(value, ToTime)
+}
+
+func ToUUIDSlice(value any) []uuid.UUID {
+	return ToSlice(value, ToUUID)
 }
 
 func ToRuneSlice(value any) []rune {
@@ -232,6 +237,8 @@ func ToByteSlice(value any) []byte {
 		return []byte(strconv.FormatFloat(v, 'f', -1, 64))
 	case bool:
 		return []byte(strconv.FormatBool(v))
+	case uuid.UUID:
+		return v[:]
 	}
 
 	return []byte(ToString(value))

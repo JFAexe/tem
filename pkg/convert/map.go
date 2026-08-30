@@ -3,6 +3,7 @@ package convert
 import (
 	"reflect"
 	"time"
+	"uuid"
 
 	"github.com/JFAexe/tem/pkg/reflection"
 )
@@ -113,4 +114,8 @@ func ToStringDurationMap(value any) map[string]time.Duration {
 
 func ToStringTimeMap(value any) map[string]time.Time {
 	return ToMap(value, ToString, ToTime)
+}
+
+func ToStringUUIDMap(value any) map[string]uuid.UUID {
+	return ToMap(value, ToString, ToUUID)
 }

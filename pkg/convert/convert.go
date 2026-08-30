@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 	"unicode/utf8"
+	"uuid"
 
 	"github.com/JFAexe/tem/pkg/reflection"
 )
@@ -76,6 +77,8 @@ func ToBool(value any) bool {
 		return v != 0
 	case time.Time:
 		return !v.UTC().IsZero()
+	case uuid.UUID:
+		return v != uuid.Nil()
 	case error:
 		return boolFromString(v.Error())
 	case fmt.Stringer:
@@ -674,6 +677,47 @@ func ToTime(value any) time.Time {
 	return timeFromString(ToString(value))
 }
 
+func ToUUID(value any) uuid.UUID {
+	if value == nil {
+		return uuid.Nil()
+	}
+
+	switch v := value.(type) {
+	case uuid.UUID:
+		return v
+	case string:
+		return uuidFromString(v)
+	case []byte:
+		return uuidFromString(string(v))
+	case []rune:
+		return uuidFromString(string(v))
+	case error:
+		return uuidFromString(v.Error())
+	case fmt.Stringer:
+		return uuidFromString(v.String())
+	}
+
+	rv := reflection.IndirectValue(value)
+	if !rv.IsValid() {
+		return uuid.Nil()
+	}
+
+	switch rv.Kind() {
+	case reflect.String:
+		return uuidFromString(rv.String())
+	case reflect.Array:
+		if rv.Len() == 16 && rv.Type().Elem().Kind() == reflect.Uint8 {
+			var u uuid.UUID
+
+			reflect.ValueOf(&u).Elem().Set(rv)
+
+			return u
+		}
+	}
+
+	return uuidFromString(ToString(value))
+}
+
 func boolFromString(s string) bool {
 	if b, err := strconv.ParseBool(s); err == nil {
 		return b
@@ -846,4 +890,12 @@ func unixNsec(s int64, f float64) int64 {
 	}
 
 	return nsec
+}
+
+func uuidFromString(s string) uuid.UUID {
+	if u, err := uuid.Parse(s); err == nil {
+		return u
+	}
+
+	return uuid.Nil()
 }

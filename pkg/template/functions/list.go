@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/JFAexe/tem/pkg/reflection"
@@ -479,6 +480,10 @@ func equalAny(a, b any) bool {
 		if b, ok := b.(time.Time); ok {
 			return a.Equal(b)
 		}
+	case uuid.UUID:
+		if b, ok := b.(uuid.UUID); ok {
+			return a.Compare(b) == 0
+		}
 	}
 
 	return reflection.Compare(reflect.ValueOf(a), reflect.ValueOf(b))
@@ -506,6 +511,11 @@ func compareAny(a, b any) int {
 		}
 	}
 
+	if ua, ok := a.(uuid.UUID); ok {
+		if ub, ok := b.(uuid.UUID); ok {
+			return ua.Compare(ub)
+		}
+	}
 
 	if reflection.IsNumber(a) && reflection.IsNumber(b) {
 		return cmp.Compare(convert.ToFloat64(a), convert.ToFloat64(b))
