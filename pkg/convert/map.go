@@ -37,7 +37,7 @@ func ToMap[K comparable, V any, M map[K]V](value any, kf ConvertKeyFunc[K], vf C
 	case reflect.Struct:
 		out := make(M, rv.NumField())
 
-		for name, field := range reflection.ExportedFields(rv) {
+		for name, field := range reflection.Fields(rv) {
 			out[kf(name)] = vf(field.Interface())
 		}
 

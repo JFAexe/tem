@@ -3,6 +3,7 @@ package convert
 import (
 	"cmp"
 	"math"
+	"unicode"
 )
 
 const (
@@ -26,7 +27,7 @@ func Clamp[T cmp.Ordered](v, mi, ma T) T {
 	return min(max(v, mi), ma)
 }
 
-func ClampFloat[F Float, I Int | Uint](v F, mi, ma I) I {
+func ClampFloat[I Int | Uint](v float64, mi, ma I) I {
 	f := float64(v)
 
 	if f <= float64(mi) {
@@ -56,6 +57,10 @@ func SafeInt32[T Int](v T) int32 {
 	return int32(Clamp(int64(v), math.MinInt32, math.MaxInt32))
 }
 
+func SafeInt64[T Int](v T) int64 {
+	return int64(v)
+}
+
 func SafeIntToUint8[T Int](v T) uint8 {
 	return uint8(Clamp(int64(v), 0, math.MaxUint8))
 }
@@ -80,6 +85,10 @@ func SafeIntToFloat64[T Int](v T) float64 {
 	return float64(Clamp(int64(v), -Float64ExactIntMax, Float64ExactIntMax))
 }
 
+func SafeIntToRune[T Int](v T) int32 {
+	return int32(Clamp(int64(v), 0, unicode.MaxRune))
+}
+
 func SafeUint[T Uint](v T) uint {
 	return uint(Clamp(uint64(v), 0, math.MaxUint))
 }
@@ -96,6 +105,10 @@ func SafeUint32[T Uint](v T) uint32 {
 	return uint32(Clamp(uint64(v), 0, math.MaxUint32))
 }
 
+func SafeUint64[T Uint](v T) uint64 {
+	return uint64(v)
+}
+
 func SafeUintToInt8[T Uint](v T) int8 {
 	return int8(Clamp(uint64(v), 0, math.MaxInt8))
 }
@@ -110,6 +123,10 @@ func SafeUintToInt32[T Uint](v T) int32 {
 
 func SafeUintToInt64[T Uint](v T) int64 {
 	return int64(Clamp(uint64(v), 0, math.MaxInt64))
+}
+
+func SafeUintToRune[T Uint](v T) int32 {
+	return int32(Clamp(uint64(v), 0, unicode.MaxRune))
 }
 
 func SafeUintToFloat32[T Uint](v T) float32 {
@@ -135,33 +152,37 @@ func SafeFloat64[T Float](v T) float64 {
 }
 
 func SafeFloatToInt8[T Float](v T) int8 {
-	return ClampFloat[float64, int8](SafeFloat64(v), math.MinInt8, math.MaxInt8)
+	return ClampFloat[int8](SafeFloat64(v), math.MinInt8, math.MaxInt8)
 }
 
 func SafeFloatToInt16[T Float](v T) int16 {
-	return ClampFloat[float64, int16](SafeFloat64(v), math.MinInt16, math.MaxInt16)
+	return ClampFloat[int16](SafeFloat64(v), math.MinInt16, math.MaxInt16)
 }
 
 func SafeFloatToInt32[T Float](v T) int32 {
-	return ClampFloat[float64, int32](SafeFloat64(v), math.MinInt32, math.MaxInt32)
+	return ClampFloat[int32](SafeFloat64(v), math.MinInt32, math.MaxInt32)
 }
 
 func SafeFloatToInt64[T Float](v T) int64 {
-	return ClampFloat[float64, int64](SafeFloat64(v), math.MinInt64, math.MaxInt64)
+	return ClampFloat[int64](SafeFloat64(v), math.MinInt64, math.MaxInt64)
 }
 
 func SafeFloatToUint8[T Float](v T) uint8 {
-	return ClampFloat[float64, uint8](SafeFloat64(v), 0, math.MaxUint8)
+	return ClampFloat[uint8](SafeFloat64(v), 0, math.MaxUint8)
 }
 
 func SafeFloatToUint16[T Float](v T) uint16 {
-	return ClampFloat[float64, uint16](SafeFloat64(v), 0, math.MaxUint16)
+	return ClampFloat[uint16](SafeFloat64(v), 0, math.MaxUint16)
 }
 
 func SafeFloatToUint32[T Float](v T) uint32 {
-	return ClampFloat[float64, uint32](SafeFloat64(v), 0, math.MaxUint32)
+	return ClampFloat[uint32](SafeFloat64(v), 0, math.MaxUint32)
 }
 
 func SafeFloatToUint64[T Float](v T) uint64 {
-	return ClampFloat[float64, uint64](SafeFloat64(v), 0, math.MaxUint64)
+	return ClampFloat[uint64](SafeFloat64(v), 0, math.MaxUint64)
+}
+
+func SafeFloatToRune[T Float](v T) int32 {
+	return int32(Clamp(SafeFloatToInt32(v), 0, unicode.MaxRune))
 }

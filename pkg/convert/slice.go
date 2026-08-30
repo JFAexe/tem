@@ -15,6 +15,10 @@ func ToSlice[T any, S []T](value any, fn ConvertFunc[T]) S {
 	}
 
 	if v, ok := value.(S); ok {
+		if v == nil {
+			return make(S, 0)
+		}
+
 		return slices.Clone(v)
 	}
 
@@ -33,8 +37,8 @@ func ToSlice[T any, S []T](value any, fn ConvertFunc[T]) S {
 		for i := range rv.Len() {
 			e := rv.Index(i)
 
-			if e.IsValid() && e.Type().ConvertibleTo(typ) {
-				out = append(out, e.Convert(typ).Interface().(T))
+			if e.Type() == typ {
+				out = append(out, e.Interface().(T))
 			} else {
 				out = append(out, fn(e.Interface()))
 			}
@@ -125,29 +129,29 @@ func ToRuneSlice(value any) []rune {
 	case []byte:
 		return []rune(string(v))
 	case int:
-		return []rune{SafeInt32(v)}
+		return []rune{SafeIntToRune(v)}
 	case int8:
-		return []rune{SafeInt32(v)}
+		return []rune{SafeIntToRune(v)}
 	case int16:
-		return []rune{SafeInt32(v)}
+		return []rune{SafeIntToRune(v)}
 	case int32:
-		return []rune{SafeInt32(v)}
+		return []rune{SafeIntToRune(v)}
 	case int64:
-		return []rune{SafeInt32(v)}
+		return []rune{SafeIntToRune(v)}
 	case uint:
-		return []rune{SafeUintToInt32(v)}
+		return []rune{SafeUintToRune(v)}
 	case uint8:
-		return []rune{SafeUintToInt32(v)}
+		return []rune{SafeUintToRune(v)}
 	case uint16:
-		return []rune{SafeUintToInt32(v)}
+		return []rune{SafeUintToRune(v)}
 	case uint32:
-		return []rune{SafeUintToInt32(v)}
+		return []rune{SafeUintToRune(v)}
 	case uint64:
-		return []rune{SafeUintToInt32(v)}
+		return []rune{SafeUintToRune(v)}
 	case float32:
-		return []rune{SafeFloatToInt32(v)}
+		return []rune{SafeFloatToRune(v)}
 	case float64:
-		return []rune{SafeFloatToInt32(v)}
+		return []rune{SafeFloatToRune(v)}
 	}
 
 	rv := reflection.IndirectValue(value)
@@ -157,11 +161,11 @@ func ToRuneSlice(value any) []rune {
 
 	switch rv.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return []rune{SafeInt32(rv.Int())}
+		return []rune{SafeIntToRune(rv.Int())}
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return []rune{SafeUintToInt32(rv.Uint())}
+		return []rune{SafeUintToRune(rv.Uint())}
 	case reflect.Float32, reflect.Float64:
-		return []rune{SafeFloatToInt32(rv.Float())}
+		return []rune{SafeFloatToRune(rv.Float())}
 	case reflect.Slice, reflect.Array:
 		out := make([]rune, 0, rv.Len())
 
@@ -174,11 +178,11 @@ func ToRuneSlice(value any) []rune {
 
 			switch e.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				out = append(out, SafeInt32(e.Int()))
+				out = append(out, SafeIntToRune(e.Int()))
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				out = append(out, SafeUintToInt32(e.Uint()))
+				out = append(out, SafeUintToRune(e.Uint()))
 			case reflect.Float32, reflect.Float64:
-				out = append(out, SafeFloatToInt32(e.Float()))
+				out = append(out, SafeFloatToRune(e.Float()))
 			case reflect.String:
 				out = append(out, runeFromString(e.String()))
 			default:

@@ -21,6 +21,8 @@ var timeLayouts = []string{
 	time.ANSIC,
 	time.UnixDate,
 	time.RubyDate,
+	time.DateOnly,
+	time.TimeOnly,
 }
 
 type (
@@ -61,9 +63,9 @@ func ToBool(value any) bool {
 	case uint64:
 		return v != 0
 	case float32:
-		return v != 0
+		return v == v && v != 0
 	case float64:
-		return v != 0
+		return v == v && v != 0
 	case string:
 		return boolFromString(v)
 	case []byte:
@@ -95,7 +97,11 @@ func ToBool(value any) bool {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return rv.Uint() != 0
 	case reflect.Float32, reflect.Float64:
-		return rv.Float() != 0
+		f := rv.Float()
+
+		return f == f && f != 0
+	case reflect.Slice, reflect.Map:
+		return rv.Len() != 0
 	}
 
 	return boolFromString(ToString(value))
@@ -181,29 +187,29 @@ func ToRune(value any) rune {
 
 	switch v := value.(type) {
 	case int:
-		return SafeInt32(int64(v))
+		return SafeIntToRune(v)
 	case int8:
-		return SafeInt32(int64(v))
+		return SafeIntToRune(v)
 	case int16:
-		return SafeInt32(int64(v))
+		return SafeIntToRune(v)
 	case int32:
-		return SafeInt32(int64(v))
+		return SafeIntToRune(v)
 	case int64:
-		return SafeInt32(v)
+		return SafeIntToRune(v)
 	case uint:
-		return SafeUintToInt32(uint64(v))
+		return SafeUintToRune(v)
 	case uint8:
-		return SafeUintToInt32(uint64(v))
+		return SafeUintToRune(v)
 	case uint16:
-		return SafeUintToInt32(uint64(v))
+		return SafeUintToRune(v)
 	case uint32:
-		return SafeUintToInt32(uint64(v))
+		return SafeUintToRune(v)
 	case uint64:
-		return SafeUintToInt32(v)
+		return SafeUintToRune(v)
 	case float32:
-		return SafeFloatToInt32(v)
+		return SafeFloatToRune(v)
 	case float64:
-		return SafeFloatToInt32(v)
+		return SafeFloatToRune(v)
 	case string:
 		return runeFromString(v)
 	case []byte:
@@ -233,11 +239,11 @@ func ToRune(value any) rune {
 
 	switch rv.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return SafeInt32(rv.Int())
+		return SafeIntToRune(rv.Int())
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return SafeUintToInt32(rv.Uint())
+		return SafeUintToRune(rv.Uint())
 	case reflect.Float32, reflect.Float64:
-		return SafeFloatToInt32(rv.Float())
+		return SafeFloatToRune(rv.Float())
 	case reflect.String:
 		return runeFromString(rv.String())
 	}
@@ -477,7 +483,7 @@ func ToFloat64(value any) float64 {
 		return 0
 	case json.Number:
 		if f, err := v.Float64(); err == nil {
-			return f
+			return SafeFloat64(f)
 		}
 	case string:
 		return float64FromString(v)
@@ -669,9 +675,11 @@ func ToTime(value any) time.Time {
 }
 
 func boolFromString(s string) bool {
-	b, _ := strconv.ParseBool(s)
+	if b, err := strconv.ParseBool(s); err == nil {
+		return b
+	}
 
-	return b
+	return s != ""
 }
 
 func runeFromString(s string) rune {
@@ -685,8 +693,16 @@ func runeFromString(s string) rune {
 }
 
 func int64FromString(s string) int64 {
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return i
+	}
+
 	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
 		return i
+	}
+
+	if u, err := strconv.ParseUint(s, 10, 64); err == nil {
+		return SafeUintToInt64(u)
 	}
 
 	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
@@ -701,8 +717,16 @@ func int64FromString(s string) int64 {
 }
 
 func uint64FromString(s string) uint64 {
+	if u, err := strconv.ParseUint(s, 10, 64); err == nil {
+		return u
+	}
+
 	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
 		return u
+	}
+
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return SafeIntToUint64(i)
 	}
 
 	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
@@ -718,11 +742,19 @@ func uint64FromString(s string) uint64 {
 
 func float64FromString(s string) float64 {
 	if f, err := strconv.ParseFloat(s, 64); err == nil {
-		return f
+		return SafeFloat64(f)
+	}
+
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return SafeIntToFloat64(i)
 	}
 
 	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
 		return SafeIntToFloat64(i)
+	}
+
+	if u, err := strconv.ParseUint(s, 10, 64); err == nil {
+		return SafeUintToFloat64(u)
 	}
 
 	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
@@ -741,8 +773,16 @@ func durationFromString(s string) time.Duration {
 		return d
 	}
 
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return time.Duration(i)
+	}
+
 	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
 		return time.Duration(i)
+	}
+
+	if u, err := strconv.ParseUint(s, 10, 64); err == nil {
+		return time.Duration(SafeUintToInt64(u))
 	}
 
 	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
@@ -763,8 +803,16 @@ func timeFromString(s string) time.Time {
 		}
 	}
 
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return time.Unix(i, 0).UTC()
+	}
+
 	if i, err := strconv.ParseInt(s, 0, 64); err == nil {
 		return time.Unix(i, 0).UTC()
+	}
+
+	if u, err := strconv.ParseUint(s, 10, 64); err == nil {
+		return time.Unix(SafeUintToInt64(u), 0).UTC()
 	}
 
 	if u, err := strconv.ParseUint(s, 0, 64); err == nil {
@@ -779,6 +827,8 @@ func timeFromString(s string) time.Time {
 }
 
 func unixTimeFromFloat(f float64) time.Time {
+	f = SafeFloat64(f)
+
 	s := SafeFloatToInt64(f)
 
 	return time.Unix(s, unixNsec(s, f)).UTC()
