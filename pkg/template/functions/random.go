@@ -13,52 +13,51 @@ import (
 	"github.com/JFAexe/tem/pkg/reflection"
 )
 
+const maxRangeLength = 1 << 20
 
 var one = big.NewInt(1)
 
 type Random struct{}
 
-func (f *Random) Pick(values ...any) (any, error) {
-	return f.PickFrom(values)
-}
-
-func (*Random) PickFrom(value any) (any, error) {
-	rv := reflection.IndirectValue(value)
-	if !rv.IsValid() {
-		return nil, ErrEmptyObject
-	}
-
-	var values []any
-
-	switch rv.Kind() {
-	case reflect.Struct:
-		values = make([]any, 0, rv.NumField())
-
-		for _, field := range reflection.ExportedFields(rv) {
-			values = append(values, field.Interface())
+func (*Random) Pick(args ...any) (any, error) {
+	if len(args) == 1 {
+		rv := reflection.IndirectValue(args[0])
+		if !rv.IsValid() {
+			return nil, fmt.Errorf("%w: expected non-empty list, or map, or struct, or ...any", ErrValueRequired)
 		}
-	case reflect.Map:
-		values = make([]any, 0, rv.Len())
 
-		for iter := rv.MapRange(); iter.Next(); {
-			values = append(values, iter.Value().Interface())
+		var values []any
+
+		switch rv.Kind() {
+		case reflect.Struct:
+			values = make([]any, 0, rv.NumField())
+
+			for _, field := range reflection.Fields(rv) {
+				values = append(values, field.Interface())
+			}
+		case reflect.Map:
+			values = make([]any, 0, rv.Len())
+
+			for iter := rv.MapRange(); iter.Next(); {
+				values = append(values, iter.Value().Interface())
+			}
+		default:
+			values = convert.ToAnySlice(rv.Interface())
 		}
-	default:
-		values = convert.ToAnySlice(rv.Interface())
+
+		args = values
 	}
 
-	count := int64(len(values))
-
-	if count == 0 {
-		return nil, ErrEmptyObject
+	if len(args) == 0 {
+		return nil, fmt.Errorf("%w: expected non-empty list, or map, or struct, or ...any", ErrValueRequired)
 	}
 
-	idx, err := randInt64(count, false)
+	idx, err := randInt64(int64(len(args)), false)
 	if err != nil {
 		return nil, err
 	}
 
-	return values[idx], nil
+	return args[idx], nil
 }
 
 func (*Random) Shuffle(items any) ([]any, error) {
@@ -106,22 +105,22 @@ func (f *Random) String(length any, args ...any) (_ string, err error) {
 
 	switch len(args) {
 	case 0:
-		if set, err = cachedRunes(`[a-zA-Z0-9._-]`); err != nil {
+		if set, err = cachedRegexSet("[a-zA-Z0-9._-]"); err != nil {
 			return "", err
 		}
-	case 2:
-		set = rangeSet(args[0], args[1])
-	default:
-		if set, err = cachedRunes(convert.ToString(args[0])); err != nil {
+	case 1:
+		if set, err = cachedRegexSet(convert.ToString(args[0])); err != nil {
 			set = convert.ToRuneSlice(args[0])
 		}
+	default:
+		set = cachedRangeSet(args[0], args[1])
 	}
 
 	return randString(convert.ToInt64(length), set)
 }
 
 func (f *Random) ASCII(length any) (string, error) {
-	set, err := cachedRunes(`[[:ascii:]]`)
+	set, err := cachedRegexSet("[[:ascii:]]")
 	if err != nil {
 		return "", err
 	}
@@ -130,7 +129,7 @@ func (f *Random) ASCII(length any) (string, error) {
 }
 
 func (f *Random) Alpha(length any) (string, error) {
-	set, err := cachedRunes(`[[:alpha:]]`)
+	set, err := cachedRegexSet("[[:alpha:]]")
 	if err != nil {
 		return "", err
 	}
@@ -139,7 +138,7 @@ func (f *Random) Alpha(length any) (string, error) {
 }
 
 func (f *Random) Numeric(length any) (string, error) {
-	set, err := cachedRunes(`[[:digit:]]`)
+	set, err := cachedRegexSet("[[:digit:]]")
 	if err != nil {
 		return "", err
 	}
@@ -148,7 +147,7 @@ func (f *Random) Numeric(length any) (string, error) {
 }
 
 func (f *Random) AlphaNumeric(length any) (string, error) {
-	set, err := cachedRunes(`[[:alnum:]]`)
+	set, err := cachedRegexSet("[[:alnum:]]")
 	if err != nil {
 		return "", err
 	}
@@ -157,7 +156,7 @@ func (f *Random) AlphaNumeric(length any) (string, error) {
 }
 
 func (f *Random) Hex(length any) (string, error) {
-	set, err := cachedRunes(`[[:xdigit:]]`)
+	set, err := cachedRegexSet("[[:xdigit:]]")
 	if err != nil {
 		return "", err
 	}
@@ -166,7 +165,7 @@ func (f *Random) Hex(length any) (string, error) {
 }
 
 func (f *Random) Graphic(length any) (string, error) {
-	set, err := cachedRunes(`[[:graph:]]`)
+	set, err := cachedRegexSet("[[:graph:]]")
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +192,7 @@ func randInt64Range(args []int64, inclusive bool) (int64, error) {
 			upper = slices.Max(args)
 		)
 
-		if upper-math.MaxInt > lower {
+		if d := uint64(upper) - uint64(lower); d > math.MaxInt64 {
 			return 0, ErrRangeTooLarge
 		}
 
@@ -299,42 +298,49 @@ func randBool(p float64) (bool, error) {
 }
 
 func randString(length int64, set []rune) (string, error) {
-	if length = max(0, length); len(set) == 0 || length == 0 {
+	if length = convert.Clamp(length, 0, maxRangeLength); len(set) == 0 || length == 0 {
 		return "", nil
 	}
 
 	var (
-		builder strings.Builder
+		setLen = len(set)
+		width  = 1
+	)
 
-		setLen = int(len(set))
+	for 1<<(8*width) < setLen {
+		width++
+	}
+
+	var (
+		wordMax = uint64(1) << (8 * width)
+		lim     = wordMax - wordMax%uint64(setLen)
+
+		builder strings.Builder
+		buf     = make([]byte, 64*width)
+		pos     = len(buf)
 	)
 
 	builder.Grow(int(length) * 4)
 
-	var (
-		size = int(min(length, 128))
-		buf  = make([]byte, size)
-		lim  = 256 - (256 % setLen)
-		idx  = 0
-	)
-
-	if lim == 0 {
-		lim = 256
-	}
-
 	for i := int64(0); i < length; {
-		if idx == 0 {
+		if pos+width > len(buf) {
 			if _, err := rand.Read(buf); err != nil {
 				return "", err
 			}
 
-			idx = size
+			pos = 0
 		}
 
-		idx--
+		var word uint64
 
-		if b := int(buf[idx]); b < lim {
-			builder.WriteRune(set[b%setLen])
+		for k := range width {
+			word = word<<8 | uint64(buf[pos+k])
+		}
+
+		pos += width
+
+		if word < lim {
+			builder.WriteRune(set[int(word%uint64(setLen))])
 
 			i++
 		}
