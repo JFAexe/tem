@@ -1,12 +1,10 @@
 package functions
 
 import (
-	"fmt"
 	"math"
 	"slices"
 
 	"github.com/JFAexe/tem/pkg/convert"
-	"github.com/JFAexe/tem/pkg/reflection"
 )
 
 type Math struct{}
@@ -113,6 +111,10 @@ func (*Math) Round(value any, precision ...any) float64 {
 
 	pow := math.Pow(10, convert.SafeIntToFloat64(p))
 
+	if math.IsInf(pow, 0) || pow == 0 {
+		return v
+	}
+
 	return math.Round(v*pow) / pow
 }
 
@@ -176,15 +178,6 @@ func (*Math) Max(values ...any) float64 {
 	return slices.Max(s)
 }
 
-func (*Math) Clamp(minimum, maximum, value any) (result float64, err error) {
-	rv := reflection.IndirectValue(value)
-	if !rv.IsValid() {
-		return 0, fmt.Errorf("got invalid value: %w", reflection.ErrNilPointer)
-	}
-
-	if !rv.CanInt() && !rv.CanFloat() {
-		return 0, fmt.Errorf("value type must be a number, got `%T`", value)
-	}
-
-	return convert.Clamp(convert.ToFloat64(value), convert.ToFloat64(minimum), convert.ToFloat64(maximum)), nil
+func (*Math) Clamp(minimum, maximum, value any) (result float64) {
+	return convert.Clamp(convert.ToFloat64(value), convert.ToFloat64(minimum), convert.ToFloat64(maximum))
 }
