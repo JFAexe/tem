@@ -28,22 +28,27 @@ import (
 	"github.com/JFAexe/tem/pkg/env"
 )
 
-var hashers = map[string]hash.Hash{
-	"crc32":      crc32.NewIEEE(),
-	"crc64":      crc64.New(crc64.MakeTable(crc64.ECMA)),
-	"crc64-iso":  crc64.New(crc64.MakeTable(crc64.ISO)),
-	"md5":        md5.New(),
-	"sha1":       sha1.New(),
-	"sha256-224": sha256.New224(),
-	"sha256":     sha256.New(),
-	"sha3-224":   sha3.New224(),
-	"sha3-256":   sha3.New256(),
-	"sha3-384":   sha3.New384(),
-	"sha3-512":   sha3.New512(),
-	"sha512-224": sha512.New512_224(),
-	"sha512-256": sha512.New512_256(),
-	"sha512-384": sha512.New384(),
-	"sha512":     sha512.New(),
+var (
+	crc64ECMA = crc64.MakeTable(crc64.ECMA)
+	crc64ISO  = crc64.MakeTable(crc64.ISO)
+)
+
+var dataHashers = map[string]func() hash.Hash{
+	"crc32":      func() hash.Hash { return crc32.NewIEEE() },
+	"crc64":      func() hash.Hash { return crc64.New(crc64ECMA) },
+	"crc64-iso":  func() hash.Hash { return crc64.New(crc64ISO) },
+	"md5":        md5.New,
+	"sha1":       sha1.New,
+	"sha256-224": sha256.New224,
+	"sha256":     sha256.New,
+	"sha3-224":   func() hash.Hash { return sha3.New224() },
+	"sha3-256":   func() hash.Hash { return sha3.New256() },
+	"sha3-384":   func() hash.Hash { return sha3.New384() },
+	"sha3-512":   func() hash.Hash { return sha3.New512() },
+	"sha512-224": sha512.New512_224,
+	"sha512-256": sha512.New512_256,
+	"sha512-384": sha512.New384,
+	"sha512":     sha512.New,
 }
 
 type Data struct{}
@@ -54,22 +59,27 @@ func (*Data) Xor(key, value any) string {
 		k = convert.ToByteSlice(key)
 	)
 
-	for i := range d {
-		d[i] ^= k[i%len(k)]
+	if len(k) > 0 {
+		for i := range d {
+			d[i] ^= k[i%len(k)]
+		}
 	}
 
 	return string(d)
 }
 
 func (*Data) Hash(kind, value any) (string, error) {
-	k := strings.ToLower(strings.TrimSpace(convert.ToString(kind)))
+	k := normalizeString(kind)
 
-	hasher, ok := hashers[k]
+	hasher, ok := dataHashers[k]
 	if !ok {
-		return "", fmt.Errorf("invalid hash function %#q, supported: %s", k, strings.Join(slices.Sorted(maps.Keys(hashers)), ", "))
+		return "", fmt.Errorf("invalid hash function %#q, supported: %s", k, joinKeys(dataHashers))
 	}
 
-	return hex.EncodeToString(hasher.Sum(convert.ToByteSlice(value))), nil
+	h := hasher()
+	h.Write(convert.ToByteSlice(value))
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (*Data) FromHex(data any) (string, error) {

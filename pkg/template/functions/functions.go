@@ -382,3 +382,7 @@ func render(t *template.Template, name string, data ...any) (string, error) {
 func normalizeString(value any) string {
 	return strings.ToLower(strings.TrimSpace(convert.ToString(value)))
 }
+
+func joinKeys(value any) string {
+	return strings.Join(slices.Sorted(maps.Keys(convert.ToStringAnyMap(value))), ", ")
+}
