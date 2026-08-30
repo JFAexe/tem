@@ -11,7 +11,8 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"hash"
 	"hash/crc32"
@@ -20,8 +21,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/goccy/go-yaml"
+	"github.com/pelletier/go-toml/v2"
 
 	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/JFAexe/tem/pkg/env"
@@ -146,7 +147,7 @@ func (*Data) ToJSON(value any) (string, error) {
 }
 
 func (*Data) ToJSONPretty(value any) (string, error) {
-	out, err := json.MarshalIndent(value, "", "  ")
+	out, err := json.Marshal(value, jsontext.Multiline(true), jsontext.WithIndent("  "))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal json: %w", err)
 	}
@@ -204,15 +205,15 @@ func (*Data) ToTOML(value any) (string, error) {
 func (*Data) FromDotEnv(data any) (env.Map, error) {
 	var out env.Map
 
-	if err := env.Unmarshal(convert.ToByteSlice(data), &out, env.WithDecoderExpand(false)); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
+	if err := env.UnmarshalOptions(convert.ToByteSlice(data), &out, env.WithDecoderExpand(false)); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal .env: %w", err)
 	}
 
 	return out, nil
 }
 
-func (*Data) ToDotEnv(value env.Map) (string, error) {
-	out, err := env.Marshal(value, env.WithEncoderExpand(false))
+func (*Data) ToDotEnv(value any) (string, error) {
+	out, err := env.MarshalOptions(convert.ToStringStringMap(value), env.WithEncoderExpand(false))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal .env: %w", err)
 	}
@@ -223,15 +224,15 @@ func (*Data) ToDotEnv(value env.Map) (string, error) {
 func (*Data) FromDotEnvExpanded(data any) (env.Map, error) {
 	var out env.Map
 
-	if err := env.Unmarshal(convert.ToByteSlice(data), &out, env.WithDecoderExpand(true), env.WithDecoderLookup(env.Lookup)); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
+	if err := env.UnmarshalOptions(convert.ToByteSlice(data), &out, env.WithDecoderExpand(true), env.WithDecoderLookup(env.RawLookup)); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal .env: %w", err)
 	}
 
 	return out, nil
 }
 
-func (*Data) ToDotEnvExpanded(value env.Map) (string, error) {
-	out, err := env.Marshal(value, env.WithEncoderExpand(true), env.WithEncoderLookup(env.Lookup))
+func (*Data) ToDotEnvExpanded(value any) (string, error) {
+	out, err := env.MarshalOptions(convert.ToStringStringMap(value), env.WithEncoderExpand(true), env.WithEncoderLookup(env.RawLookup))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal .env: %w", err)
 	}
@@ -286,7 +287,7 @@ func (*Data) ToCSV(delim, data any) (string, error) {
 	}
 
 	var (
-		headers = slices.Collect(maps.Keys(d[0]))
+		headers = slices.Sorted(maps.Keys(d[0]))
 		records = make([][]string, 0, len(d)+1)
 	)
 
