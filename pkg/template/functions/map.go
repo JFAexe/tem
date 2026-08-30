@@ -2,7 +2,6 @@ package functions
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/JFAexe/tem/pkg/reflection"
@@ -14,25 +13,46 @@ func MapVarargInit(n *Map, args []any) (any, error) {
 	return n.New(args...)
 }
 
-func (*Map) New(kv ...any) (map[string]any, error) {
-	out := make(map[string]any, len(kv)/2)
+func (*Map) New(args ...any) (map[string]any, error) {
+	if len(args) == 1 {
+		if nested, ok := args[0].([]any); ok {
+			flat := make([]any, 0, len(nested)*2)
 
-	if len(kv)%2 != 0 {
-		return out, fmt.Errorf("amount of arguments for key-values should be even, got %d", len(kv))
+			for _, item := range nested {
+				if pair, ok := item.([]any); ok && len(pair) > 1 {
+					flat = append(flat, pair[0], pair[1])
+				}
+			}
+
+			args = flat
+		}
 	}
 
-	for i := 0; i < len(kv); i += 2 {
-		out[convert.ToString(kv[i])] = kv[i+1]
+	if len(args)%2 != 0 {
+		return nil, fmt.Errorf("amount of arguments for key-value pairs should be even, got %d", len(args))
+	}
+
+	out := make(map[string]any, len(args)/2)
+
+	for i := 0; i < len(args); i += 2 {
+		out[convert.ToString(args[i])] = args[i+1]
 	}
 
 	return out, nil
 }
 
-func (*Map) Merge(to any, with ...any) map[string]any {
-	t := convert.ToStringAnyMap(to)
+func (*Map) Merge(args ...any) map[string]any {
+	if len(args) == 0 {
+		return make(map[string]any)
+	}
+
+	var (
+		to, with = popOne(args)
+		t        = convert.ToStringAnyMap(to)
+	)
 
 	for _, w := range with {
-		rv, ok := mapReflectValue(w)
+		rv, ok := reflection.MapValue(w)
 		if !ok {
 			continue
 		}
@@ -45,15 +65,21 @@ func (*Map) Merge(to any, with ...any) map[string]any {
 	return t
 }
 
-func (*Map) Pick(m any, keys ...any) map[string]any {
-	out := make(map[string]any, len(keys))
+func (*Map) Pick(args ...any) map[string]any {
+	out := make(map[string]any)
 
-	rv, ok := mapReflectValue(m)
+	if len(args) == 0 {
+		return out
+	}
+
+	m, keys := popOne(args)
+
+	rv, ok := reflection.MapValue(m)
 	if !ok {
 		return out
 	}
 
-	for _, k := range keys {
+	for _, k := range listFlatten(keys) {
 		kv, err := reflection.ResolveKey(rv, k)
 		if err != nil {
 			continue
@@ -67,22 +93,28 @@ func (*Map) Pick(m any, keys ...any) map[string]any {
 	return out
 }
 
-func (*Map) Omit(m any, keys ...any) map[string]any {
-	set := make(map[string]struct{}, len(keys))
+func (*Map) Omit(args ...any) map[string]any {
+	out := make(map[string]any)
 
-	for _, k := range keys {
-		set[convert.ToString(k)] = struct{}{}
-	}
-
-	rv, ok := mapReflectValue(m)
-	if !ok {
-		return make(map[string]any)
+	if len(args) == 0 {
+		return out
 	}
 
 	var (
-		out  = make(map[string]any, rv.Len())
-		iter = rv.MapRange()
+		m, keys = popOne(args)
+		set     = make(map[string]struct{}, len(keys))
 	)
+
+	for _, k := range listFlatten(keys) {
+		set[convert.ToString(k)] = struct{}{}
+	}
+
+	rv, ok := reflection.MapValue(m)
+	if !ok {
+		return out
+	}
+
+	iter := rv.MapRange()
 
 	for iter.Next() {
 		ks := convert.ToString(iter.Key().Interface())
@@ -96,7 +128,7 @@ func (*Map) Omit(m any, keys ...any) map[string]any {
 }
 
 func (*Map) Keys(m any) []any {
-	rv, ok := mapReflectValue(m)
+	rv, ok := reflection.MapValue(m)
 	if !ok {
 		return make([]any, 0)
 	}
@@ -114,7 +146,7 @@ func (*Map) Keys(m any) []any {
 }
 
 func (*Map) Values(m any) []any {
-	rv, ok := mapReflectValue(m)
+	rv, ok := reflection.MapValue(m)
 	if !ok {
 		return make([]any, 0)
 	}
@@ -129,13 +161,4 @@ func (*Map) Values(m any) []any {
 	}
 
 	return out
-}
-
-func mapReflectValue(m any) (reflect.Value, bool) {
-	rv := reflection.IndirectValue(m)
-	if !rv.IsValid() || rv.Kind() != reflect.Map {
-		return rv, false
-	}
-
-	return rv, true
 }
