@@ -396,7 +396,7 @@ func in(item, value any) bool {
 		}
 	}
 
-	return false
+	return equalAny(item, value)
 }
 
 func File(value any) (string, error) {
