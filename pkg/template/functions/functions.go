@@ -559,53 +559,62 @@ func popTwo(args []any) (first, second any, rest []any) {
 	return args[len(args)-1], args[len(args)-2], args[:len(args)-2]
 }
 
-func popPredicate(args []any) (any, func(any) (bool, error), error) {
+func popPredicate(args []any) (any, UnaryPredicate, error) {
 	if len(args) == 0 {
 		return nil, nil, fmt.Errorf("%w: expected predicate, collection", ErrValueRequired)
 	}
 
 	var (
-		pred  = args[0]
 		items = convert.ToAnySlice(args[len(args)-1])
-		fixed = slices.Clone(args[1 : len(args)-1])
+		pred  = args[0]
+		fixed = args[1 : len(args)-1]
 	)
 
 	switch p := pred.(type) {
 	case VariablePredicate:
-		return items, func(item any) (bool, error) { return p(append(fixed, item)...) }, nil
+		return items, func(item any) (bool, error) { return p(append(slices.Clone(fixed), item)...) }, nil
 	case VariableBoolPredicate:
-		return items, func(item any) (bool, error) { return p(append(fixed, item)...), nil }, nil
+		return items, func(item any) (bool, error) { return p(append(slices.Clone(fixed), item)...), nil }, nil
 	}
 
-	switch len(args) {
-	case 2:
+	if len(args) == 1 {
+		return items, func(item any) (bool, error) { return convert.ToBool(item), nil }, nil
+	}
+
+	fn, err := bindPredicate(pred, fixed)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return items, fn, nil
+}
+
+func bindPredicate(pred any, fixed []any) (func(any) (bool, error), error) {
+	switch len(fixed) {
+	case 0:
 		switch p := pred.(type) {
 		case UnaryPredicate:
-			return items, p, nil
+			return p, nil
 		case UnaryBoolPredicate:
-			return items, func(item any) (bool, error) { return p(item), nil }, nil
+			return func(v any) (bool, error) { return p(v), nil }, nil
 		case any:
-			return items, func(item any) (bool, error) { return equalAny(item, pred), nil }, nil
+			return func(item any) (bool, error) { return equalAny(item, pred), nil }, nil
 		}
-	case 3:
+	case 1:
 		switch p := pred.(type) {
 		case BinaryPredicate:
-			return items, func(item any) (bool, error) { return p(fixed[0], item) }, nil
+			return func(v any) (bool, error) { return p(fixed[0], v) }, nil
 		case BinaryBoolPredicate:
-			return items, func(item any) (bool, error) { return p(fixed[0], item), nil }, nil
+			return func(v any) (bool, error) { return p(fixed[0], v), nil }, nil
 		}
-	case 4:
+	case 2:
 		switch p := pred.(type) {
 		case TernaryPredicate:
-			return items, func(item any) (bool, error) { return p(fixed[0], fixed[1], item) }, nil
+			return func(v any) (bool, error) { return p(fixed[0], fixed[1], v) }, nil
 		case TernaryBoolPredicate:
-			return items, func(item any) (bool, error) { return p(fixed[0], fixed[1], item), nil }, nil
+			return func(v any) (bool, error) { return p(fixed[0], fixed[1], v), nil }, nil
 		}
 	}
 
-	if len(args) != 1 {
-		return nil, nil, fmt.Errorf("unsupported predicate type %T", pred)
-	}
-
-	return items, func(item any) (bool, error) { return convert.ToBool(item), nil }, nil
+	return nil, fmt.Errorf("unsupported predicate type %T", pred)
 }
