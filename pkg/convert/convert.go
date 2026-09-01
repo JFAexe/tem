@@ -623,7 +623,7 @@ func ToTime(value any) time.Time {
 
 	switch v := value.(type) {
 	case time.Time:
-		return v.UTC()
+		return v
 	case time.Duration:
 		return time.Unix(0, int64(v)).UTC()
 	case int:
@@ -920,7 +920,7 @@ func durationFromString(s string) time.Duration {
 func timeFromString(s string) time.Time {
 	for _, layout := range timeLayouts {
 		if t, err := time.Parse(layout, s); err == nil {
-			return t.UTC()
+			return t
 		}
 	}
 
