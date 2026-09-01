@@ -131,9 +131,7 @@ func (*Math) Abs(value any) float64 {
 }
 
 func (*Math) Between(minimum, maximum, value any) bool {
-	v := convert.ToFloat64(value)
-
-	return v >= convert.ToFloat64(minimum) && v <= convert.ToFloat64(maximum)
+	return mathBetween(minimum, maximum, value)
 }
 
 func (*Math) Percent(part, total any) float64 {
@@ -180,4 +178,10 @@ func (*Math) Max(values ...any) float64 {
 
 func (*Math) Clamp(minimum, maximum, value any) (result float64) {
 	return convert.Clamp(convert.ToFloat64(value), convert.ToFloat64(minimum), convert.ToFloat64(maximum))
+}
+
+func mathBetween(minimum, maximum, value any) bool {
+	v := convert.ToFloat64(value)
+
+	return v >= convert.ToFloat64(minimum) && v <= convert.ToFloat64(maximum)
 }

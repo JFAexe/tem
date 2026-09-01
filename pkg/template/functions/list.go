@@ -527,7 +527,12 @@ func compareAny(a, b any) int {
 		return cmp.Compare(convert.ToFloat64(a), convert.ToFloat64(b))
 	}
 
-	if ra, rb := reflection.IndirectValue(a), reflection.IndirectValue(b); ra.Kind() == reflect.Bool && rb.Kind() == reflect.Bool {
+	var (
+		ra, okA = reflection.BoolValue(a)
+		rb, okB = reflection.BoolValue(b)
+	)
+
+	if okA && okB {
 		switch {
 		case ra.Bool() == rb.Bool():
 			return 0

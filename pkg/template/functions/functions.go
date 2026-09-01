@@ -91,6 +91,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"math":       Namespace(new(Math)),
 		"net":        Namespace(new(Net)),
 		"path":       Namespace(new(Path)),
+		"is":         Namespace(new(Predicate)),
 		"random":     Namespace(new(Random)),
 		"regex":      Namespace(new(Regex)),
 		"rune":       Namespace(new(Rune)),

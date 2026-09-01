@@ -29,7 +29,7 @@ func (*Path) Clean(value any) string {
 }
 
 func (*Path) IsAbs(value any) bool {
-	return path.IsAbs(convert.ToString(value))
+	return pathIsAbs(value)
 }
 
 func (*Path) Root(value any) string {
@@ -95,5 +95,13 @@ func (*Path) Split(value any) DirFile {
 }
 
 func (*Path) Match(pattern, name any) (bool, error) {
+	return pathMatch(pattern, name)
+}
+
+func pathMatch(pattern, name any) (bool, error) {
 	return doublestar.Match(convert.ToString(pattern), convert.ToString(name))
+}
+
+func pathIsAbs(value any) bool {
+	return path.IsAbs(convert.ToString(value))
 }

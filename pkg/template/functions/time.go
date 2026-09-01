@@ -85,20 +85,20 @@ func (*Time) Local(value any) time.Time {
 	return convert.ToTime(value).Local()
 }
 
-func (*Time) After(other, value any) bool {
-	return convert.ToTime(value).After(convert.ToTime(other))
-}
-
-func (*Time) Before(other, value any) bool {
-	return convert.ToTime(value).Before(convert.ToTime(other))
-}
-
-func (*Time) Equal(other, value any) bool {
-	return convert.ToTime(value).Equal(convert.ToTime(other))
-}
-
 func (*Time) IsZero(value any) bool {
-	return convert.ToTime(value).IsZero()
+	return timeIsZero(value)
+}
+
+func (*Time) IsAfter(other, value any) bool {
+	return timeIsAfter(other, value)
+}
+
+func (*Time) IsBefore(other, value any) bool {
+	return timeIsBefore(other, value)
+}
+
+func (*Time) IsEqual(other, value any) bool {
+	return timeIsEqual(other, value)
 }
 
 func (*Time) Format(format, value any) string {
@@ -150,6 +150,22 @@ func (*Time) Layout(value any) (string, error) {
 	}
 
 	return layout, nil
+}
+
+func timeIsZero(value any) bool {
+	return convert.ToTime(value).IsZero()
+}
+
+func timeIsAfter(other, value any) bool {
+	return convert.ToTime(value).After(convert.ToTime(other))
+}
+
+func timeIsBefore(other, value any) bool {
+	return convert.ToTime(value).Before(convert.ToTime(other))
+}
+
+func timeIsEqual(other, value any) bool {
+	return convert.ToTime(value).Equal(convert.ToTime(other))
 }
 
 func cachedLocation(zone string) (*time.Location, error) {
