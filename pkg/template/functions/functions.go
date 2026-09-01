@@ -164,6 +164,10 @@ func All(args ...any) (bool, error) {
 		return false, err
 	}
 
+	if items == nil {
+		return false, nil
+	}
+
 	for item, err := range reflection.Values(items) {
 		if err != nil {
 			return false, fmt.Errorf("all: %w", err)
@@ -201,10 +205,10 @@ func Index(args ...any) (any, error) {
 
 	item, path := popOne(args)
 
-	return index(item, path...)
+	return index(item, path)
 }
 
-func index(item any, args ...any) (any, error) {
+func index(item any, args []any) (any, error) {
 	path := listFlatten(args)
 	if len(path) == 0 {
 		return nil, fmt.Errorf("index requires at least one key/index")
@@ -231,15 +235,15 @@ func IndexOr(args ...any) any {
 
 	item, value, keys := popTwo(args)
 
-	return indexOr(item, value, keys...)
+	return indexOr(item, value, keys)
 }
 
-func indexOr(item, value any, args ...any) any {
+func indexOr(item, value any, args []any) any {
 	if len(args) == 0 {
 		return Default(item, value)
 	}
 
-	if v, err := index(item, args...); err == nil {
+	if v, err := index(item, args); err == nil {
 		return v
 	}
 
@@ -253,15 +257,15 @@ func IndexOrSet(args ...any) (any, error) {
 
 	item, value, keys := popTwo(args)
 
-	if v, err := index(item, keys...); err == nil {
+	if v, err := index(item, keys); err == nil {
 		return v, nil
 	}
 
-	if _, err := set(item, value, keys...); err != nil {
+	if _, err := set(item, value, keys); err != nil {
 		return nil, err
 	}
 
-	return index(item, keys...)
+	return index(item, keys)
 }
 
 func Set(args ...any) (any, error) {
@@ -271,10 +275,10 @@ func Set(args ...any) (any, error) {
 
 	item, value, keys := popTwo(args)
 
-	return set(item, value, keys...)
+	return set(item, value, keys)
 }
 
-func set(item, value any, args ...any) (any, error) {
+func set(item, value any, args []any) (any, error) {
 	path := listFlatten(args)
 	if len(path) == 0 {
 		return item, fmt.Errorf("set requires at least one index/key")
@@ -308,10 +312,10 @@ func Unset(args ...any) (any, error) {
 
 	item, path := popOne(args)
 
-	return unset(item, path...)
+	return unset(item, path)
 }
 
-func unset(item any, args ...any) (any, error) {
+func unset(item any, args []any) (any, error) {
 	path := listFlatten(args)
 	if len(path) == 0 {
 		return item, fmt.Errorf("unset requires at least one index/key")
@@ -349,15 +353,15 @@ func IsSet(args ...any) bool {
 
 	item, path := popOne(args)
 
-	return isSet(item, path...)
+	return isSet(item, path)
 }
 
-func isSet(item any, args ...any) bool {
+func isSet(item any, args []any) bool {
 	if len(args) == 0 {
 		return reflect.ValueOf(item).IsValid()
 	}
 
-	_, err := index(item, args...)
+	_, err := index(item, args)
 
 	return err == nil
 }
@@ -431,6 +435,7 @@ func Include(t *template.Template) func(args ...any) (string, error) {
 			return "", fmt.Errorf("%w: expected `name`, or `context, name`", ErrValueRequired)
 		case 1:
 			name = convert.ToString(args[0])
+			ctx = make(map[string]any)
 		case 2:
 			name = convert.ToString(args[1])
 			ctx = args[0]
@@ -457,6 +462,7 @@ func Inline(t *template.Template) func(args ...any) (string, error) {
 			return "", fmt.Errorf("%w: expected `template`, or `context, template`, or `...options, context, template`", ErrValueRequired)
 		case 1:
 			tpl = args[0]
+			ctx = make(map[string]any)
 		case 2:
 			tpl = args[1]
 			ctx = args[0]
@@ -541,7 +547,7 @@ func popTwo(args []any) (first, second any, rest []any) {
 
 func popPredicate(args []any) (any, func(any) (bool, error), error) {
 	if len(args) == 0 {
-		return nil, nil, fmt.Errorf("%w: expected `predicate, collection`", ErrValueRequired)
+		return nil, nil, fmt.Errorf("%w: expected predicate, collection", ErrValueRequired)
 	}
 
 	switch p := args[0].(type) {

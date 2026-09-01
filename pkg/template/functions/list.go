@@ -139,9 +139,10 @@ func (*List) Where(args ...any) ([]any, error) {
 }
 
 func (*List) WhereBy(key, value, items any) ([]any, error) {
-	s := convert.ToAnySlice(items)
-
-	out := make([]any, 0, len(s))
+	var (
+		s   = convert.ToAnySlice(items)
+		out = make([]any, 0, len(s))
+	)
 
 	for _, item := range s {
 		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err == nil && equalAny(v.Interface(), value) {
@@ -183,9 +184,10 @@ func (*List) Remove(args ...any) ([]any, error) {
 }
 
 func (*List) RemoveBy(key, value, items any) ([]any, error) {
-	s := convert.ToAnySlice(items)
-
-	out := make([]any, 0, len(s))
+	var (
+		s   = convert.ToAnySlice(items)
+		out = make([]any, 0, len(s))
+	)
 
 	for _, item := range s {
 		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err != nil || !equalAny(v.Interface(), value) {
