@@ -3,10 +3,8 @@ package reflection
 import (
 	"errors"
 	"fmt"
-	"iter"
 	"math"
 	"reflect"
-	"strings"
 )
 
 var (
@@ -15,105 +13,8 @@ var (
 	ErrOutOfRange   = errors.New("index out of range")
 	ErrTypeMismatch = errors.New("type mismatch")
 	ErrKeyMissing   = errors.New("key missing")
+	ErrNotSettable  = errors.New("target is not settable")
 )
-
-var structTags = []string{
-	"json",
-	"yaml",
-	"toml",
-}
-
-func Zero(value any) any {
-	if value == nil {
-		return nil
-	}
-
-	return reflect.Zero(reflect.TypeOf(value)).Interface()
-}
-
-func IsZero(value any) bool {
-	v := IndirectValue(value)
-
-	return !v.IsValid() || v.IsZero()
-}
-
-func IsEmpty(value any) bool {
-	v := IndirectValue(value)
-	if !v.IsValid() {
-		return true
-	}
-
-	switch v.Kind() {
-	case reflect.Slice, reflect.Array, reflect.Map:
-		return v.Len() == 0
-	}
-
-	return v.IsZero()
-}
-
-func IsBool(v any) bool {
-	rv := IndirectValue(v)
-
-	return rv.IsValid() && rv.Kind() == reflect.Bool
-}
-
-func IsNumber(v any) bool {
-	rv := IndirectValue(v)
-
-	return rv.IsValid() && (rv.CanInt() || rv.CanUint() || rv.CanFloat())
-}
-
-func IsSlice(v any) bool {
-	_, ok := SliceValue(v)
-
-	return ok
-}
-
-func IsMap(v any) bool {
-	_, ok := MapValue(v)
-
-	return ok
-}
-
-func SliceValue(v any) (reflect.Value, bool) {
-	rv := IndirectValue(v)
-
-	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) {
-		return rv, true
-	}
-
-	return rv, false
-}
-
-func MapValue(v any) (reflect.Value, bool) {
-	rv := IndirectValue(v)
-
-	if rv.IsValid() && rv.Kind() == reflect.Map {
-		return rv, true
-	}
-
-	return rv, false
-}
-
-func IndirectValue(value any) reflect.Value {
-	v, ok := value.(reflect.Value)
-	if !ok {
-		v = reflect.ValueOf(value)
-	}
-
-	for {
-		switch v.Kind() {
-		case reflect.Pointer, reflect.Interface:
-			if v.IsNil() {
-				return reflect.Value{}
-			}
-
-			v = v.Elem()
-		default:
-			return v
-		}
-	}
-}
 
 func Lookup(v reflect.Value, key any) (reflect.Value, error) {
 	if v = IndirectValue(v); !v.IsValid() {
@@ -236,7 +137,7 @@ func Unset(v reflect.Value, key any) error {
 
 func SetTarget(target, val reflect.Value) error {
 	if !target.CanSet() {
-		return fmt.Errorf("target is not settable (unaddressable)")
+		return ErrNotSettable
 	}
 
 	converted, err := Convert(val, target.Type())
@@ -337,88 +238,4 @@ func ResolveField(v reflect.Value, key any) (reflect.Value, error) {
 	}
 
 	return reflect.Value{}, ErrKeyMissing
-}
-
-func Fields(rv reflect.Value) iter.Seq2[string, reflect.Value] {
-	return func(yield func(name string, field reflect.Value) bool) {
-		if rv.Kind() != reflect.Struct {
-			return
-		}
-
-		typ := rv.Type()
-
-		for i := range typ.NumField() {
-			field := typ.Field(i)
-
-			if !field.IsExported() {
-				continue
-			}
-
-			var (
-				name = field.Name
-				skip = false
-			)
-
-			for _, tag := range structTags {
-				val := field.Tag.Get(tag)
-
-				if val == "" {
-					continue
-				}
-
-				if before, _, ok := strings.Cut(val, ","); ok {
-					val = before
-				}
-
-				if val == "-" {
-					skip = true
-
-					break
-				}
-
-				if val != "" {
-					name = val
-
-					break
-				}
-			}
-
-			if skip {
-				continue
-			}
-
-			if !yield(name, rv.Field(i)) {
-				break
-			}
-		}
-	}
-}
-
-func Values(v any) iter.Seq2[any, error] {
-	return func(yield func(any, error) bool) {
-		rv := IndirectValue(v)
-
-		switch rv.Kind() {
-		case reflect.Slice, reflect.Array:
-			for i := range rv.Len() {
-				if !yield(rv.Index(i).Interface(), nil) {
-					return
-				}
-			}
-		case reflect.Map:
-			for iter := rv.MapRange(); iter.Next(); {
-				if !yield(iter.Value().Interface(), nil) {
-					return
-				}
-			}
-		case reflect.Struct:
-			for _, field := range Fields(rv) {
-				if !yield(field.Interface(), nil) {
-					return
-				}
-			}
-		default:
-			yield(v, nil)
-		}
-	}
 }
