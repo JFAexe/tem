@@ -31,6 +31,17 @@ var (
 
 const maxIncludeDepth = 16
 
+type (
+	UnaryPredicate        = func(any) (bool, error)
+	UnaryBoolPredicate    = func(any) bool
+	BinaryPredicate       = func(any, any) (bool, error)
+	BinaryBoolPredicate   = func(any, any) bool
+	TernaryPredicate      = func(any, any, any) (bool, error)
+	TernaryBoolPredicate  = func(any, any, any) bool
+	VariablePredicate     = func(...any) (bool, error)
+	VariableBoolPredicate = func(...any) bool
+)
+
 func Namespace(n any) func() any {
 	return func() any {
 		return n
@@ -433,7 +444,7 @@ func Include(t *template.Template) func(args ...any) (string, error) {
 
 		switch len(args) {
 		case 0:
-			return "", fmt.Errorf("%w: expected `name`, or `context, name`", ErrValueRequired)
+			return "", fmt.Errorf("%w: expected name, or context, name", ErrValueRequired)
 		case 1:
 			name = convert.ToString(args[0])
 			ctx = make(map[string]any)
@@ -441,7 +452,7 @@ func Include(t *template.Template) func(args ...any) (string, error) {
 			name = convert.ToString(args[1])
 			ctx = args[0]
 		default:
-			return "", fmt.Errorf("%w: expected `name`, or `context, name`", ErrTooManyArguments)
+			return "", fmt.Errorf("%w: expected name, or context, name", ErrTooManyArguments)
 		}
 
 		depth.Add(1)
@@ -460,7 +471,7 @@ func Inline(t *template.Template) func(args ...any) (string, error) {
 
 		switch len(args) {
 		case 0:
-			return "", fmt.Errorf("%w: expected `template`, or `context, template`, or `...options, context, template`", ErrValueRequired)
+			return "", fmt.Errorf("%w: expected template, or context, template, or ...options, context, template", ErrValueRequired)
 		case 1:
 			tpl = args[0]
 			ctx = make(map[string]any)
@@ -551,28 +562,48 @@ func popPredicate(args []any) (any, func(any) (bool, error), error) {
 		return nil, nil, fmt.Errorf("%w: expected predicate, collection", ErrValueRequired)
 	}
 
-	switch p := args[0].(type) {
-	case string:
-		if len(args) > 2 {
-			return nil, nil, fmt.Errorf("unsupported predicate type %T", args[0])
-		}
+	var (
+		pred  = args[0]
+		items = convert.ToAnySlice(args[len(args)-1])
+		fixed = slices.Clone(args[1 : len(args)-1])
+	)
 
-		return args[len(args)-1], func(item any) (bool, error) {
-			return equalAny(item, p), nil
-		}, nil
-	case func(any) (bool, error):
-		if len(args) > 2 {
-			return nil, nil, fmt.Errorf("unsupported predicate type %T", args[0])
-		}
-
-		return args[len(args)-1], p, nil
+	switch p := pred.(type) {
+	case VariablePredicate:
+		return items, func(item any) (bool, error) { return p(append(fixed, item)...) }, nil
+	case VariableBoolPredicate:
+		return items, func(item any) (bool, error) { return p(append(fixed, item)...), nil }, nil
 	}
 
-	if len(args) > 1 {
-		return nil, nil, fmt.Errorf("unsupported predicate type %T", args[0])
+	switch len(args) {
+	case 2:
+		switch p := pred.(type) {
+		case UnaryPredicate:
+			return items, p, nil
+		case UnaryBoolPredicate:
+			return items, func(item any) (bool, error) { return p(item), nil }, nil
+		case any:
+			return items, func(item any) (bool, error) { return equalAny(item, pred), nil }, nil
+		}
+	case 3:
+		switch p := pred.(type) {
+		case BinaryPredicate:
+			return items, func(item any) (bool, error) { return p(fixed[0], item) }, nil
+		case BinaryBoolPredicate:
+			return items, func(item any) (bool, error) { return p(fixed[0], item), nil }, nil
+		}
+	case 4:
+		switch p := pred.(type) {
+		case TernaryPredicate:
+			return items, func(item any) (bool, error) { return p(fixed[0], fixed[1], item) }, nil
+		case TernaryBoolPredicate:
+			return items, func(item any) (bool, error) { return p(fixed[0], fixed[1], item), nil }, nil
+		}
 	}
 
-	return args[len(args)-1], func(item any) (bool, error) {
-		return convert.ToBool(item), nil
-	}, nil
+	if len(args) != 1 {
+		return nil, nil, fmt.Errorf("unsupported predicate type %T", pred)
+	}
+
+	return items, func(item any) (bool, error) { return convert.ToBool(item), nil }, nil
 }
