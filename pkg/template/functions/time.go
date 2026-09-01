@@ -29,6 +29,31 @@ var layouts = map[string]string{
 
 var locationCache = cache.NewSyncCache[string, *time.Location]()
 
+type TimeZone struct {
+	Name   string `json:"name"   yaml:"name"   toml:"name"`
+	Offset int    `json:"offset" yaml:"offset" toml:"offset"`
+}
+
+func (z TimeZone) String() string {
+	var (
+		sign    = "+"
+		seconds = z.Offset
+	)
+
+	if seconds < 0 {
+		sign = "-"
+		seconds = -seconds
+	}
+
+	s := fmt.Sprintf("%s%s%02d:%02d", z.Name, sign, seconds/3600, seconds%3600/60)
+
+	if sec := seconds % 60; sec != 0 {
+		s += fmt.Sprintf(":%02d", sec)
+	}
+
+	return s
+}
+
 type Time struct{}
 
 func (*Time) Now() time.Time {
@@ -44,7 +69,7 @@ func (*Time) Parse(layout, value any) (time.Time, error) {
 }
 
 func (*Time) In(zone, value any) (time.Time, error) {
-	loc, err := cachedLocation(convert.ToString(zone))
+	loc, err := cachedLocation(zone)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -57,7 +82,7 @@ func (*Time) ParseIn(layout, zone, value any) (time.Time, error) {
 		layout = l
 	}
 
-	loc, err := cachedLocation(convert.ToString(zone))
+	loc, err := cachedLocation(zone)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -99,6 +124,31 @@ func (*Time) IsBefore(other, value any) bool {
 
 func (*Time) IsEqual(other, value any) bool {
 	return timeIsEqual(other, value)
+}
+
+func (*Time) CustomZone(offset, name any) *TimeZone {
+	return &TimeZone{
+		Name:   convert.ToString(name),
+		Offset: convert.ToInt(offset),
+	}
+}
+
+func (*Time) LocalZone() *TimeZone {
+	name, offset := time.Now().Zone()
+
+	return &TimeZone{
+		Name:   name,
+		Offset: offset,
+	}
+}
+
+func (*Time) Zone(value any) *TimeZone {
+	name, offset := convert.ToTime(value).Zone()
+
+	return &TimeZone{
+		Name:   name,
+		Offset: offset,
+	}
 }
 
 func (*Time) Format(format, value any) string {
@@ -168,10 +218,16 @@ func timeIsEqual(other, value any) bool {
 	return convert.ToTime(value).Equal(convert.ToTime(other))
 }
 
-func cachedLocation(zone string) (*time.Location, error) {
-	zone = strings.TrimSpace(zone)
+func cachedLocation(zone any) (*time.Location, error) {
+	if z, ok := zone.(*TimeZone); ok && z != nil {
+		return locationCache.Get(z.String(), func() (*time.Location, error) {
+			return time.FixedZone(z.Name, z.Offset), nil
+		})
+	}
 
-	return locationCache.Get(zone, func() (*time.Location, error) {
-		return time.LoadLocation(zone)
+	loc := strings.TrimSpace(convert.ToString(zone))
+
+	return locationCache.Get(loc, func() (*time.Location, error) {
+		return time.LoadLocation(loc)
 	})
 }
