@@ -100,10 +100,10 @@ func (*Filepath) Join(values ...any) string {
 	return filepath.Join(convert.ToStringSlice(values)...)
 }
 
-func (*Filepath) Split(value any) DirFile {
+func (*Filepath) Split(value any) *DirFile {
 	dir, file := filepath.Split(convert.ToString(value))
 
-	return DirFile{
+	return &DirFile{
 		Dir:  dir,
 		File: file,
 	}

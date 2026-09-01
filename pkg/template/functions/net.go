@@ -25,7 +25,7 @@ func (*Net) JoinHostPort(args ...any) (string, error) {
 	case 0:
 		return "", fmt.Errorf("%w: expected host+port, or port, or host, port", ErrValueRequired)
 	case 1:
-		if h, ok := args[0].(NetHost); ok {
+		if h, ok := args[0].(*NetHost); ok && h != nil {
 			host = h.Host
 			port = h.Port
 		} else {
@@ -41,13 +41,13 @@ func (*Net) JoinHostPort(args ...any) (string, error) {
 	return net.JoinHostPort(host, port), nil
 }
 
-func (*Net) SplitHostPort(hostport any) (NetHost, error) {
+func (*Net) SplitHostPort(hostport any) (*NetHost, error) {
 	host, port, err := net.SplitHostPort(convert.ToString(hostport))
 	if err != nil {
-		return NetHost{}, fmt.Errorf("failed to split host-port: %w", err)
+		return nil, fmt.Errorf("failed to split host-port: %w", err)
 	}
 
-	return NetHost{
+	return &NetHost{
 		Host: host,
 		Port: port,
 	}, nil
