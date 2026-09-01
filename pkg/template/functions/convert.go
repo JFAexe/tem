@@ -30,6 +30,10 @@ func (*Convert) Int(value any) int {
 	return convert.ToInt(value)
 }
 
+func (*Convert) Uint(value any) uint {
+	return convert.ToUint(value)
+}
+
 func (*Convert) Float(value any) float64 {
 	return convert.ToFloat64(value)
 }
@@ -56,6 +60,10 @@ func (*Convert) Strings(value any) []string {
 
 func (*Convert) Ints(value any) []int {
 	return convert.ToIntSlice(value)
+}
+
+func (*Convert) Uints(value any) []uint {
+	return convert.ToUintSlice(value)
 }
 
 func (*Convert) Floats(value any) []float64 {
@@ -100,6 +108,10 @@ func (*Convert) StringMap(value any) map[string]string {
 
 func (*Convert) IntMap(value any) map[string]int {
 	return convert.ToStringIntMap(value)
+}
+
+func (*Convert) UintMap(value any) map[string]uint {
+	return convert.ToStringUintMap(value)
 }
 
 func (*Convert) FloatMap(value any) map[string]float64 {
