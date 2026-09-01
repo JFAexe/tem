@@ -85,6 +85,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"data":       Namespace(new(Data)),
 		"env":        NamespaceVararg(new(Env), EnvVarargInit),
 		"filepath":   Namespace(new(Filepath)),
+		"ip":         Namespace(new(IP)),
 		"list":       NamespaceVararg(new(List), ListVarargInit),
 		"map":        NamespaceVararg(new(Map), MapVarargInit),
 		"math":       Namespace(new(Math)),
