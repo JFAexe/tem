@@ -6,11 +6,6 @@ import (
 	"unicode"
 )
 
-const (
-	Float32ExactIntMax = 1 << 24
-	Float64ExactIntMax = 1 << 53
-)
-
 type Int interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64
 }
@@ -29,6 +24,10 @@ func Clamp[T cmp.Ordered](v, mi, ma T) T {
 
 func ClampFloat[I Int | Uint](v float64, mi, ma I) I {
 	f := float64(v)
+
+	if math.IsNaN(v) {
+		return 0
+	}
 
 	if f <= float64(mi) {
 		return mi
@@ -61,6 +60,10 @@ func SafeInt64[T Int](v T) int64 {
 	return int64(v)
 }
 
+func SafeIntToUint[T Int](v T) uint {
+	return uint(max(v, 0))
+}
+
 func SafeIntToUint8[T Int](v T) uint8 {
 	return uint8(Clamp(int64(v), 0, math.MaxUint8))
 }
@@ -78,11 +81,11 @@ func SafeIntToUint64[T Int](v T) uint64 {
 }
 
 func SafeIntToFloat32[T Int](v T) float32 {
-	return float32(Clamp(int64(v), -Float32ExactIntMax, Float32ExactIntMax))
+	return float32(v)
 }
 
 func SafeIntToFloat64[T Int](v T) float64 {
-	return float64(Clamp(int64(v), -Float64ExactIntMax, Float64ExactIntMax))
+	return float64(v)
 }
 
 func SafeIntToRune[T Int](v T) int32 {
@@ -109,6 +112,10 @@ func SafeUint64[T Uint](v T) uint64 {
 	return uint64(v)
 }
 
+func SafeUintToInt[T Uint](v T) int {
+	return int(min(uint(v), math.MaxInt))
+}
+
 func SafeUintToInt8[T Uint](v T) int8 {
 	return int8(Clamp(uint64(v), 0, math.MaxInt8))
 }
@@ -130,11 +137,11 @@ func SafeUintToRune[T Uint](v T) int32 {
 }
 
 func SafeUintToFloat32[T Uint](v T) float32 {
-	return float32(Clamp(uint64(v), 0, Float32ExactIntMax))
+	return float32(v)
 }
 
 func SafeUintToFloat64[T Uint](v T) float64 {
-	return float64(Clamp(uint64(v), 0, Float64ExactIntMax))
+	return float64(v)
 }
 
 func SafeFloat32[T Float](v T) float32 {
@@ -151,6 +158,10 @@ func SafeFloat64[T Float](v T) float64 {
 	return f
 }
 
+func SafeFloatToInt[T Float](v T) int {
+	return SafeInt(SafeFloatToInt64(v))
+}
+
 func SafeFloatToInt8[T Float](v T) int8 {
 	return ClampFloat[int8](SafeFloat64(v), math.MinInt8, math.MaxInt8)
 }
@@ -165,6 +176,10 @@ func SafeFloatToInt32[T Float](v T) int32 {
 
 func SafeFloatToInt64[T Float](v T) int64 {
 	return ClampFloat[int64](SafeFloat64(v), math.MinInt64, math.MaxInt64)
+}
+
+func SafeFloatToUint[T Float](v T) uint {
+	return SafeUint(SafeFloatToUint64(v))
 }
 
 func SafeFloatToUint8[T Float](v T) uint8 {

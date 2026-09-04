@@ -704,6 +704,14 @@ func ToUUID(value any) uuid.UUID {
 	case string:
 		return uuidFromString(v)
 	case []byte:
+		if len(v) == 16 {
+			var u uuid.UUID
+
+			copy(u[:], v)
+
+			return u
+		}
+
 		return uuidFromString(string(v))
 	case []rune:
 		return uuidFromString(string(v))
@@ -721,13 +729,9 @@ func ToUUID(value any) uuid.UUID {
 	switch rv.Kind() {
 	case reflect.String:
 		return uuidFromString(rv.String())
-	case reflect.Array:
+	case reflect.Array, reflect.Slice:
 		if rv.Len() == 16 && rv.Type().Elem().Kind() == reflect.Uint8 {
-			var u uuid.UUID
-
-			reflect.ValueOf(&u).Elem().Set(rv)
-
-			return u
+			return uuidFromBytes(rv)
 		}
 	}
 
@@ -975,6 +979,16 @@ func uuidFromString(s string) uuid.UUID {
 	}
 
 	return uuid.Nil()
+}
+
+func uuidFromBytes(rv reflect.Value) uuid.UUID {
+	var u uuid.UUID
+
+	for i := range u {
+		u[i] = byte(rv.Index(i).Uint())
+	}
+
+	return u
 }
 
 func ipFromNumber(v uint64) net.IP {
