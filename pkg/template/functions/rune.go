@@ -19,11 +19,11 @@ type runeRange struct{ lo, hi rune }
 
 type Rune struct{}
 
-func (f *Rune) RangeSet(lower, upper any) []rune {
+func (*Rune) RangeSet(lower, upper any) []rune {
 	return cachedRangeSet(lower, upper)
 }
 
-func (f *Rune) RegexSet(pattern any) ([]rune, error) {
+func (*Rune) RegexSet(pattern any) ([]rune, error) {
 	return cachedRegexSet(strings.TrimSpace(convert.ToString(pattern)))
 }
 

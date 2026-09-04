@@ -91,7 +91,7 @@ func (*Random) FloatInclusive(args ...any) (float64, error) {
 	return randFloat64Range(convert.ToFloat64Slice(args), true)
 }
 
-func (f *Random) Bool(args ...any) (bool, error) {
+func (*Random) Bool(args ...any) (bool, error) {
 	switch fs := convert.ToFloat64Slice(args); len(fs) {
 	case 0:
 		return randBool(0.5)
@@ -100,7 +100,7 @@ func (f *Random) Bool(args ...any) (bool, error) {
 	}
 }
 
-func (f *Random) String(length any, args ...any) (_ string, err error) {
+func (*Random) String(length any, args ...any) (_ string, err error) {
 	var set []rune
 
 	switch len(args) {
@@ -119,7 +119,7 @@ func (f *Random) String(length any, args ...any) (_ string, err error) {
 	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) ASCII(length any) (string, error) {
+func (*Random) ASCII(length any) (string, error) {
 	set, err := cachedRegexSet("[[:ascii:]]")
 	if err != nil {
 		return "", err
@@ -128,7 +128,7 @@ func (f *Random) ASCII(length any) (string, error) {
 	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Alpha(length any) (string, error) {
+func (*Random) Alpha(length any) (string, error) {
 	set, err := cachedRegexSet("[[:alpha:]]")
 	if err != nil {
 		return "", err
@@ -137,7 +137,7 @@ func (f *Random) Alpha(length any) (string, error) {
 	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Numeric(length any) (string, error) {
+func (*Random) Numeric(length any) (string, error) {
 	set, err := cachedRegexSet("[[:digit:]]")
 	if err != nil {
 		return "", err
@@ -146,7 +146,7 @@ func (f *Random) Numeric(length any) (string, error) {
 	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) AlphaNumeric(length any) (string, error) {
+func (*Random) AlphaNumeric(length any) (string, error) {
 	set, err := cachedRegexSet("[[:alnum:]]")
 	if err != nil {
 		return "", err
@@ -155,7 +155,7 @@ func (f *Random) AlphaNumeric(length any) (string, error) {
 	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Hex(length any) (string, error) {
+func (*Random) Hex(length any) (string, error) {
 	set, err := cachedRegexSet("[[:xdigit:]]")
 	if err != nil {
 		return "", err
@@ -164,7 +164,7 @@ func (f *Random) Hex(length any) (string, error) {
 	return randString(convert.ToInt64(length), set)
 }
 
-func (f *Random) Graphic(length any) (string, error) {
+func (*Random) Graphic(length any) (string, error) {
 	set, err := cachedRegexSet("[[:graph:]]")
 	if err != nil {
 		return "", err
