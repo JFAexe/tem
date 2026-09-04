@@ -74,8 +74,8 @@ func (*List) Range(args ...any) []int {
 	return out
 }
 
-func (*List) First(items any) any {
-	rv, ok := reflection.SliceValue(items)
+func (*List) First(items ...any) any {
+	rv, ok := reflection.SliceValue(listArgSlice(items))
 	if !ok || rv.Len() == 0 {
 		return nil
 	}
@@ -83,8 +83,8 @@ func (*List) First(items any) any {
 	return rv.Index(0).Interface()
 }
 
-func (*List) Last(items any) any {
-	rv, ok := reflection.SliceValue(items)
+func (*List) Last(items ...any) any {
+	rv, ok := reflection.SliceValue(listArgSlice(items))
 	if !ok || rv.Len() == 0 {
 		return nil
 	}
@@ -92,42 +92,66 @@ func (*List) Last(items any) any {
 	return rv.Index(rv.Len() - 1).Interface()
 }
 
-func (*List) Init(items any) []any {
-	if out := convert.ToAnySlice(items); len(out) > 1 {
-		return out[:len(out)-1]
+func (*List) Init(items ...any) []any {
+	if items := listArgSlice(items); len(items) > 1 {
+		return slices.Clone(items[:len(items)-1])
 	}
 
 	return make([]any, 0)
 }
 
-func (*List) Tail(items any) []any {
-	if out := convert.ToAnySlice(items); len(out) > 1 {
-		return out[1:]
+func (*List) Tail(items ...any) []any {
+	if items := listArgSlice(items); len(items) > 1 {
+		return slices.Clone(items[1:])
 	}
 
 	return make([]any, 0)
 }
 
-func (*List) Where(args ...any) ([]any, error) {
+func (*List) Any(args ...any) (bool, error) {
+	items, pred, err := popPredicate(args)
+	if err != nil {
+		return false, err
+	}
+
+	return quantify(items, pred, false)
+}
+
+func (*List) All(args ...any) (bool, error) {
+	items, pred, err := popPredicate(args)
+	if err != nil {
+		return false, err
+	}
+
+	return quantify(items, pred, true)
+}
+
+func (f *List) None(args ...any) (bool, error) {
+	ok, err := f.Any(args...)
+
+	return !ok, err
+}
+
+func (*List) Filter(args ...any) ([]any, error) {
 	items, pred, err := popPredicate(args)
 	if err != nil {
 		return nil, err
 	}
 
 	if !reflection.IsSlice(items) {
-		return nil, fmt.Errorf("where: expected a list, got %T", items)
+		return nil, fmt.Errorf("filter: expected a list, got %T", items)
 	}
 
 	out := make([]any, 0)
 
 	for item, err := range reflection.Values(items) {
 		if err != nil {
-			return nil, fmt.Errorf("where: %w", err)
+			return nil, fmt.Errorf("filter: %w", err)
 		}
 
 		ok, e := pred(item)
 		if e != nil {
-			return nil, fmt.Errorf("where: %w", e)
+			return nil, fmt.Errorf("filter: %w", e)
 		}
 
 		if ok {
@@ -138,69 +162,9 @@ func (*List) Where(args ...any) ([]any, error) {
 	return out, nil
 }
 
-func (*List) WhereBy(key, value, items any) ([]any, error) {
-	var (
-		s   = convert.ToAnySlice(items)
-		out = make([]any, 0, len(s))
-	)
-
-	for _, item := range s {
-		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err == nil && equalAny(v.Interface(), value) {
-			out = append(out, item)
-		}
-	}
-
-	return out, nil
-}
-
-func (*List) Remove(args ...any) ([]any, error) {
-	items, pred, err := popPredicate(args)
-	if err != nil {
-		return nil, err
-	}
-
-	if !reflection.IsSlice(items) {
-		return nil, fmt.Errorf("remove: expected a list, got %T", items)
-	}
-
-	out := make([]any, 0)
-
-	for item, err := range reflection.Values(items) {
-		if err != nil {
-			return nil, fmt.Errorf("remove: %w", err)
-		}
-
-		ok, e := pred(item)
-		if e != nil {
-			return nil, fmt.Errorf("remove: %w", e)
-		}
-
-		if !ok {
-			out = append(out, item)
-		}
-	}
-
-	return out, nil
-}
-
-func (*List) RemoveBy(key, value, items any) ([]any, error) {
-	var (
-		s   = convert.ToAnySlice(items)
-		out = make([]any, 0, len(s))
-	)
-
-	for _, item := range s {
-		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err != nil || !equalAny(v.Interface(), value) {
-			out = append(out, item)
-		}
-	}
-
-	return out, nil
-}
-
 func (*List) Append(args ...any) []any {
 	if len(args) == 0 {
-		return nil
+		return make([]any, 0)
 	}
 
 	item, values := popOne(args)
@@ -210,7 +174,7 @@ func (*List) Append(args ...any) []any {
 
 func (*List) Prepend(args ...any) []any {
 	if len(args) == 0 {
-		return nil
+		return make([]any, 0)
 	}
 
 	item, values := popOne(args)
@@ -218,40 +182,48 @@ func (*List) Prepend(args ...any) []any {
 	return append(values, convert.ToAnySlice(item)...)
 }
 
-func (*List) Concat(values ...any) []any {
-	return listConcat(values...)
+func (*List) Concat(items ...any) []any {
+	return listConcat(listArgSlice(items))
 }
 
-func (*List) Flatten(items any) []any {
-	return listFlatten(convert.ToAnySlice(items))
+func (*List) Flatten(items ...any) []any {
+	return listFlatten(listArgSlice(items))
 }
 
-func (*List) Compact(items any) []any {
-	return slices.CompactFunc(convert.ToAnySlice(items), equalAny)
+func (*List) Compact(items ...any) []any {
+	return slices.CompactFunc(listArgSlice(items), equalAny)
 }
 
-func (*List) Reverse(items any) []any {
-	out := convert.ToAnySlice(items)
+func (*List) Reverse(items ...any) []any {
+	out := listArgSlice(items)
 
 	slices.Reverse(out)
 
 	return out
 }
 
-func (*List) Sort(items any) ([]any, error) {
-	out := convert.ToAnySlice(items)
+func (*List) Sort(items ...any) []any {
+	out := listArgSlice(items)
 
 	if len(out) > 1 {
 		slices.SortStableFunc(out, compareAny)
 	}
 
-	return out, nil
+	return out
 }
 
-func (*List) SortBy(key, items any) ([]any, error) {
-	out := convert.ToAnySlice(items)
+func (*List) SortBy(args ...any) []any {
+	if len(args) == 0 {
+		return make([]any, 0)
+	}
+
+	var (
+		item, path = popOne(args)
+		out        = convert.ToAnySlice(item)
+	)
+
 	if len(out) <= 1 {
-		return out, nil
+		return out
 	}
 
 	type kv struct {
@@ -261,14 +233,14 @@ func (*List) SortBy(key, items any) ([]any, error) {
 
 	pairs := make([]kv, len(out))
 
-	for i, item := range out {
+	for i, v := range out {
 		var k any
 
-		if v, err := reflection.Lookup(reflect.ValueOf(item), key); err == nil {
-			k = v.Interface()
+		if rv, err := index(v, path); err == nil {
+			k = rv
 		}
 
-		pairs[i] = kv{k, item}
+		pairs[i] = kv{k, v}
 	}
 
 	slices.SortStableFunc(pairs, func(a, b kv) int { return compareAny(a.key, b.key) })
@@ -277,43 +249,54 @@ func (*List) SortBy(key, items any) ([]any, error) {
 		out[i] = p.val
 	}
 
-	return out, nil
+	return out
 }
 
-func (*List) Unique(items any) []any {
-	s := convert.ToAnySlice(items)
+func (*List) Unique(items ...any) []any {
+	s := listArgSlice(items)
 
 	if len(s) <= 1 {
 		return s
 	}
 
-	return uniqueBy(s, convert.ToAny)
+	return listUniqueBy(s, convert.ToAny)
 }
 
-func (*List) UniqueBy(key, items any) []any {
-	s := convert.ToAnySlice(items)
+func (*List) UniqueBy(args ...any) []any {
+	if len(args) == 0 {
+		return make([]any, 0)
+	}
+
+	var (
+		item, path = popOne(args)
+		s          = convert.ToAnySlice(item)
+	)
 
 	if len(s) <= 1 {
 		return s
 	}
 
-	return uniqueBy(s, func(v any) any {
-		if v, err := reflection.Lookup(reflect.ValueOf(v), key); err == nil {
-			return v.Interface()
+	return listUniqueBy(s, func(v any) any {
+		if k, err := index(v, path); err == nil {
+			return k
 		}
 
 		return &v
 	})
 }
 
-func (*List) Chunk(size, items any) [][]any {
+func (*List) Chunk(args ...any) ([][]any, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("%w: expected size, ...args", ErrValueRequired)
+	}
+
 	var (
-		n = convert.ToInt(size)
-		s = convert.ToAnySlice(items)
+		n = convert.ToInt(args[0])
+		s = listArgSlice(args[1:])
 	)
 
 	if n <= 0 || len(s) == 0 {
-		return make([][]any, 0)
+		return make([][]any, 0), nil
 	}
 
 	out := make([][]any, 0, (len(s)+n-1)/n)
@@ -329,7 +312,7 @@ func (*List) Chunk(size, items any) [][]any {
 		out = append(out, chunk)
 	}
 
-	return out
+	return out, nil
 }
 
 func (*List) Zip(values ...any) [][]any {
@@ -399,7 +382,15 @@ func (*List) Unzip(items any) [][]any {
 	return out
 }
 
-func listConcat(values ...any) []any {
+func listArgSlice(items []any) []any {
+	if len(items) == 1 && reflection.IsSlice(items[0]) {
+		items = convert.ToAnySlice(items[0])
+	}
+
+	return items
+}
+
+func listConcat(values []any) []any {
 	out := make([][]any, 0, len(values))
 
 	for _, v := range values {
@@ -419,7 +410,30 @@ func listFlatten(values []any) []any {
 	return out
 }
 
-func uniqueBy(s []any, key func(any) any) []any {
+func quantify(items []any, pred UnaryPredicate, all bool) (bool, error) {
+	if all && len(items) == 0 {
+		return false, nil
+	}
+
+	for item, err := range reflection.Values(items) {
+		if err != nil {
+			return false, err
+		}
+
+		ok, e := pred(item)
+		if e != nil {
+			return false, e
+		}
+
+		if ok != all {
+			return !all, nil
+		}
+	}
+
+	return all, nil
+}
+
+func listUniqueBy(s []any, key func(any) any) []any {
 	var (
 		out  = make([]any, 0, len(s))
 		seen = make(map[any]struct{}, len(s))

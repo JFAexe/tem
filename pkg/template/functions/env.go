@@ -44,7 +44,7 @@ func (*Env) Unset(key any) (string, error) {
 }
 
 func (*Env) BatchUnset(keys ...any) (string, error) {
-	return "", env.BatchUnset(convert.ToStringSlice(listConcat(keys...)))
+	return "", env.BatchUnset(convert.ToStringSlice(listConcat(keys)))
 }
 
 func (*Env) IsSet(key any) bool {

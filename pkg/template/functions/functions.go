@@ -66,8 +66,6 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"ternary":    Ternary,
 		"default":    Default,
 		"coalesce":   Coalesce,
-		"any":        Any,
-		"all":        All,
 		"zero":       Zero,
 		"isZero":     IsZero,
 		"isEmpty":    IsEmpty,
@@ -146,58 +144,6 @@ func Coalesce(args ...any) any {
 	}
 
 	return nil
-}
-
-func Any(args ...any) (bool, error) {
-	items, pred, err := popPredicate(args)
-	if err != nil {
-		return false, err
-	}
-
-	for item, err := range reflection.Values(items) {
-		if err != nil {
-			return false, fmt.Errorf("any: %w", err)
-		}
-
-		ok, e := pred(item)
-		if e != nil {
-			return false, fmt.Errorf("any: %w", e)
-		}
-
-		if ok {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func All(args ...any) (bool, error) {
-	items, pred, err := popPredicate(args)
-	if err != nil {
-		return false, err
-	}
-
-	if items == nil {
-		return false, nil
-	}
-
-	for item, err := range reflection.Values(items) {
-		if err != nil {
-			return false, fmt.Errorf("all: %w", err)
-		}
-
-		ok, e := pred(item)
-		if e != nil {
-			return false, fmt.Errorf("all: %w", e)
-		}
-
-		if !ok {
-			return false, nil
-		}
-	}
-
-	return true, nil
 }
 
 func Zero(value any) any {

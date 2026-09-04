@@ -15,21 +15,22 @@ func MapVarargInit(n *Map, args []any) (any, error) {
 
 func (*Map) New(args ...any) (map[string]any, error) {
 	if len(args) == 1 {
-		if nested, ok := args[0].([]any); ok {
-			flat := make([]any, 0, len(nested)*2)
+		var (
+			nested = listArgSlice(args)
+			flat   = make([]any, 0, len(nested)*2)
+		)
 
-			for _, item := range nested {
-				if pair, ok := item.([]any); ok && len(pair) > 1 {
-					flat = append(flat, pair[0], pair[1])
-				}
+		for _, item := range nested {
+			if pair, ok := item.([]any); ok && len(pair) > 1 {
+				flat = append(flat, pair[0], pair[1])
 			}
-
-			args = flat
 		}
+
+		args = flat
 	}
 
 	if len(args)%2 != 0 {
-		return nil, fmt.Errorf("amount of arguments for key-value pairs should be even, got %d", len(args))
+		return nil, fmt.Errorf("amount of arguments for key-value pairs should be even, got %d: %v", len(args), args)
 	}
 
 	out := make(map[string]any, len(args)/2)
