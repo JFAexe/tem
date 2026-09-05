@@ -32,7 +32,7 @@ func (*String) Bquote(value any) string {
 }
 
 func (*String) EqualFold(other, value any) bool {
-	return stringEqualFold(other, value)
+	return strings.EqualFold(convert.ToString(value), convert.ToString(other))
 }
 
 func (*String) ToValidUTF8(replacement, value any) string {
@@ -100,19 +100,19 @@ func (*String) TrimSuffix(suffix, value any) string {
 }
 
 func (*String) HasPrefix(prefix, value any) bool {
-	return stringHasPrefix(prefix, value)
+	return strings.HasPrefix(convert.ToString(value), convert.ToString(prefix))
 }
 
 func (*String) HasSuffix(suffix, value any) bool {
-	return stringHasSuffix(suffix, value)
+	return strings.HasSuffix(convert.ToString(value), convert.ToString(suffix))
 }
 
 func (*String) Contains(subvalue, value any) bool {
-	return stringContains(subvalue, value)
+	return strings.Contains(convert.ToString(value), convert.ToString(subvalue))
 }
 
 func (*String) ContainsAny(charset, value any) bool {
-	return stringContainsAny(charset, value)
+	return strings.ContainsAny(convert.ToString(value), convert.ToString(charset))
 }
 
 func (*String) Count(subvalue, value any) int {
@@ -331,26 +331,6 @@ func (*String) TrimTrailingSpace(value any) string {
 	}
 
 	return builder.String()
-}
-
-func stringEqualFold(other, value any) bool {
-	return strings.EqualFold(convert.ToString(value), convert.ToString(other))
-}
-
-func stringHasPrefix(prefix, value any) bool {
-	return strings.HasPrefix(convert.ToString(value), convert.ToString(prefix))
-}
-
-func stringHasSuffix(suffix, value any) bool {
-	return strings.HasSuffix(convert.ToString(value), convert.ToString(suffix))
-}
-
-func stringContains(subvalue, value any) bool {
-	return strings.Contains(convert.ToString(value), convert.ToString(subvalue))
-}
-
-func stringContainsAny(charset, value any) bool {
-	return strings.ContainsAny(convert.ToString(value), convert.ToString(charset))
 }
 
 func isSpace(value string) bool {

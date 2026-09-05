@@ -2,11 +2,102 @@ package functions
 
 import (
 	"fmt"
-	"net"
+	"maps"
 
-	"github.com/JFAexe/tem/pkg/convert"
 	"github.com/JFAexe/tem/pkg/reflection"
 )
+
+var valuePredicates = map[string]any{
+	"Zero":  IsZero,
+	"Empty": IsEmpty,
+	"Set":   IsSet,
+	"In":    In,
+}
+
+var typePredicates = map[string]any{
+	"Bool":   new(Type).IsBool,
+	"Int":    new(Type).IsInt,
+	"Uint":   new(Type).IsUint,
+	"Float":  new(Type).IsFloat,
+	"Number": new(Type).IsNumber,
+	"String": new(Type).IsString,
+	"List":   new(Type).IsList,
+	"Map":    new(Type).IsMap,
+	"Struct": new(Type).IsStruct,
+}
+
+var envPredicates = map[string]any{
+	"Set": new(Env).IsSet,
+}
+
+var filepathPredicates = map[string]any{
+	"Exists":  new(Filepath).Exists,
+	"Match":   new(Filepath).Match,
+	"Abs":     new(Filepath).IsAbs,
+	"Dir":     new(Filepath).IsDir,
+	"File":    new(Filepath).IsFile,
+	"Symlink": new(Filepath).IsSymlink,
+}
+
+var pathPredicates = map[string]any{
+	"Match": new(Path).Match,
+	"Abs":   new(Path).IsAbs,
+}
+
+var regexPredicates = map[string]any{
+	"Match": new(Regex).Match,
+}
+
+var stringPredicates = map[string]any{
+	"EqualFold":   new(String).EqualFold,
+	"Prefix":      new(String).HasPrefix,
+	"Suffix":      new(String).HasSuffix,
+	"Contains":    new(String).Contains,
+	"ContainsAny": new(String).ContainsAny,
+}
+
+var timePredicates = map[string]any{
+	"After":  new(Time).IsAfter,
+	"Before": new(Time).IsBefore,
+	"Equal":  new(Time).IsEqual,
+	"Zero":   new(Time).IsZero,
+}
+
+var uuidPredicates = map[string]any{
+	"Valid":  new(UUID).IsValid,
+	"Nil":    new(UUID).IsNil,
+	"Max":    new(UUID).IsMax,
+	"V4":     new(UUID).IsV4,
+	"V7":     new(UUID).IsV7,
+	"Equal":  new(UUID).IsEqual,
+	"Before": new(UUID).IsBefore,
+	"After":  new(UUID).IsAfter,
+}
+
+var ipPredicates = map[string]any{
+	"V4":                 new(IP).IsIPv4,
+	"V6":                 new(IP).IsIPv6,
+	"Unspecified":        new(IP).IsUnspecified,
+	"Loopback":           new(IP).IsLoopback,
+	"Private":            new(IP).IsPrivate,
+	"Multicast":          new(IP).IsMulticast,
+	"GlobalUnicast":      new(IP).IsGlobalUnicast,
+	"LinkLocalUnicast":   new(IP).IsLinkLocalUnicast,
+	"LinkLocalMulticast": new(IP).IsLinkLocalMulticast,
+}
+
+var mathPredicates = map[string]any{
+	"Between": new(Math).Between,
+}
+
+var comparePredicates = map[string]any{
+	"Equal":        wrapComparePredicate(func(c int) bool { return c == 0 }),
+	"NotEqual":     wrapComparePredicate(func(c int) bool { return c != 0 }),
+	"Greater":      wrapComparePredicate(func(c int) bool { return c > 0 }),
+	"GreaterEqual": wrapComparePredicate(func(c int) bool { return c >= 0 }),
+	"Less":         wrapComparePredicate(func(c int) bool { return c < 0 }),
+	"LessEqual":    wrapComparePredicate(func(c int) bool { return c <= 0 }),
+}
 
 type Predicate struct{}
 
@@ -81,128 +172,51 @@ func (*Predicate) View(args ...any) (UnaryErrorPredicate, error) {
 }
 
 func (*Predicate) Value() map[string]any {
-	return map[string]any{
-		"Zero":  reflection.IsZero,
-		"Empty": reflection.IsEmpty,
-		"Set":   IsSet,
-		"In":    In,
-	}
+	return maps.Clone(valuePredicates)
 }
 
 func (*Predicate) Type() map[string]any {
-	return map[string]any{
-		"Bool":   reflection.IsBool,
-		"Int":    reflection.IsInt,
-		"Uint":   reflection.IsUint,
-		"Float":  reflection.IsFloat,
-		"Number": reflection.IsNumber,
-		"String": reflection.IsString,
-		"List":   reflection.IsSlice,
-		"Map":    reflection.IsMap,
-		"Struct": reflection.IsStruct,
-	}
+	return maps.Clone(typePredicates)
 }
 
 func (*Predicate) Env() map[string]any {
-	return map[string]any{
-		"Set": envIsSet,
-	}
+	return maps.Clone(envPredicates)
 }
 
 func (*Predicate) Filepath() map[string]any {
-	return map[string]any{
-		"Exists":  filepathExists,
-		"Match":   filepathMatch,
-		"Abs":     filepathIsAbs,
-		"Dir":     filepathIsDir,
-		"File":    filepathIsFile,
-		"Symlink": filepathIsSymlink,
-	}
+	return maps.Clone(filepathPredicates)
 }
 
 func (*Predicate) Path() map[string]any {
-	return map[string]any{
-		"Match": pathMatch,
-		"Abs":   pathIsAbs,
-	}
+	return maps.Clone(pathPredicates)
 }
 
 func (*Predicate) Regex() map[string]any {
-	return map[string]any{
-		"Match": regexMatch,
-	}
+	return maps.Clone(regexPredicates)
 }
 
 func (*Predicate) String() map[string]any {
-	return map[string]any{
-		"EqualFold":   stringEqualFold,
-		"Prefix":      stringHasPrefix,
-		"Suffix":      stringHasSuffix,
-		"Contains":    stringContains,
-		"ContainsAny": stringContainsAny,
-	}
+	return maps.Clone(stringPredicates)
 }
 
 func (*Predicate) Time() map[string]any {
-	return map[string]any{
-		"After":  timeIsAfter,
-		"Before": timeIsBefore,
-		"Equal":  timeIsEqual,
-		"Zero":   timeIsZero,
-	}
+	return maps.Clone(timePredicates)
 }
 
 func (*Predicate) UUID() map[string]any {
-	return map[string]any{
-		"Valid":  uuidIsValid,
-		"Nil":    uuidIsNil,
-		"Max":    uuidIsMax,
-		"V4":     uuidIsV4,
-		"V7":     uuidIsV7,
-		"Equal":  uuidIsEqual,
-		"Before": uuidIsBefore,
-		"After":  uuidIsAfter,
-	}
+	return maps.Clone(uuidPredicates)
 }
 
 func (*Predicate) IP() map[string]any {
-	wrap := func(pred func(net.IP) bool) UnaryPredicate {
-		return func(value any) bool {
-			ip := convert.ToIP(value)
-
-			return ip != nil && pred(ip)
-		}
-	}
-
-	return map[string]any{
-		"V4":                 ipIsIPv4,
-		"V6":                 ipIsIPv6,
-		"Unspecified":        wrap(net.IP.IsUnspecified),
-		"Loopback":           wrap(net.IP.IsLoopback),
-		"Private":            wrap(net.IP.IsPrivate),
-		"Multicast":          wrap(net.IP.IsMulticast),
-		"GlobalUnicast":      wrap(net.IP.IsGlobalUnicast),
-		"LinkLocalUnicast":   wrap(net.IP.IsLinkLocalUnicast),
-		"LinkLocalMulticast": wrap(net.IP.IsLinkLocalMulticast),
-	}
+	return maps.Clone(ipPredicates)
 }
 
 func (*Predicate) Math() map[string]any {
-	wrap := func(op func(int) bool) func(other, value any) (bool, error) {
-		return func(other, value any) (bool, error) {
-			return op(compareAny(value, other)), nil
-		}
-	}
+	return maps.Clone(mathPredicates)
+}
 
-	return map[string]any{
-		"Between":      mathBetween,
-		"Equal":        wrap(func(c int) bool { return c == 0 }),
-		"NotEqual":     wrap(func(c int) bool { return c != 0 }),
-		"Greater":      wrap(func(c int) bool { return c > 0 }),
-		"GreaterEqual": wrap(func(c int) bool { return c >= 0 }),
-		"Less":         wrap(func(c int) bool { return c < 0 }),
-		"LessEqual":    wrap(func(c int) bool { return c <= 0 }),
-	}
+func (*Predicate) Compare() map[string]any {
+	return maps.Clone(comparePredicates)
 }
 
 func combinePredicates(preds []UnaryErrorPredicate, identity bool) UnaryErrorPredicate {
@@ -219,5 +233,11 @@ func combinePredicates(preds []UnaryErrorPredicate, identity bool) UnaryErrorPre
 		}
 
 		return identity, nil
+	}
+}
+
+func wrapComparePredicate(op func(int) bool) BinaryErrorPredicate {
+	return func(other, value any) (bool, error) {
+		return op(compareAny(value, other)), nil
 	}
 }

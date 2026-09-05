@@ -17,7 +17,12 @@ func (*Regex) Escape(value any) string {
 }
 
 func (*Regex) Match(regex, value any) (bool, error) {
-	return regexMatch(regex, value)
+	exp, err := cachedRegex(convert.ToString(regex))
+	if err != nil {
+		return false, err
+	}
+
+	return exp.MatchString(convert.ToString(value)), nil
 }
 
 func (*Regex) Find(regex, value any) (string, error) {
@@ -63,15 +68,6 @@ func (*Regex) Split(regex, n, value any) ([]string, error) {
 	}
 
 	return exp.Split(convert.ToString(value), convert.ToInt(n)), nil
-}
-
-func regexMatch(regex, value any) (bool, error) {
-	exp, err := cachedRegex(convert.ToString(regex))
-	if err != nil {
-		return false, err
-	}
-
-	return exp.MatchString(convert.ToString(value)), nil
 }
 
 func cachedRegex(regex string) (*regexp.Regexp, error) {

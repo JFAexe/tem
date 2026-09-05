@@ -36,7 +36,7 @@ func (*Filepath) Abs(value any) (string, error) {
 }
 
 func (*Filepath) IsAbs(value any) bool {
-	return filepathIsAbs(value)
+	return filepath.IsAbs(convert.ToString(value))
 }
 
 func (*Filepath) Root(value any) string {
@@ -126,7 +126,7 @@ func (*Filepath) Volume(value any) string {
 }
 
 func (*Filepath) Match(pattern, name any) (bool, error) {
-	return filepathMatch(pattern, name)
+	return doublestar.PathMatch(convert.ToString(pattern), convert.ToString(name))
 }
 
 func (*Filepath) Glob(value any) ([]string, error) {
@@ -200,48 +200,24 @@ func (*Filepath) Walk(args ...any) ([]WalkInfo, error) {
 }
 
 func (*Filepath) Exists(value any) bool {
-	return filepathExists(value)
-}
-
-func (*Filepath) IsDir(value any) bool {
-	return filepathIsDir(value)
-}
-
-func (*Filepath) IsFile(value any) bool {
-	return filepathIsFile(value)
-}
-
-func (*Filepath) IsSymlink(value any) bool {
-	return filepathIsSymlink(value)
-}
-
-func filepathMatch(pattern, name any) (bool, error) {
-	return doublestar.PathMatch(convert.ToString(pattern), convert.ToString(name))
-}
-
-func filepathIsAbs(value any) bool {
-	return filepath.IsAbs(convert.ToString(value))
-}
-
-func filepathExists(value any) bool {
 	_, ok := statPath(value)
 
 	return ok
 }
 
-func filepathIsDir(value any) bool {
+func (*Filepath) IsDir(value any) bool {
 	info, ok := statPath(value)
 
 	return ok && info.IsDir()
 }
 
-func filepathIsFile(value any) bool {
+func (*Filepath) IsFile(value any) bool {
 	info, ok := statPath(value)
 
 	return ok && info.Mode().IsRegular()
 }
 
-func filepathIsSymlink(value any) bool {
+func (*Filepath) IsSymlink(value any) bool {
 	str := convert.ToString(value)
 	if strings.TrimSpace(str) == "" {
 		return false

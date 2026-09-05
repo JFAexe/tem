@@ -48,7 +48,7 @@ func (*Env) BatchUnset(keys ...any) (string, error) {
 }
 
 func (*Env) IsSet(key any) bool {
-	return envIsSet(key)
+	return env.IsSet(convert.ToString(key))
 }
 
 func (*Env) Get(key any) string {
@@ -65,8 +65,4 @@ func (*Env) RawOr(def, key any) string {
 
 func (*Env) Or(def, key any) string {
 	return env.Or(convert.ToString(key), convert.ToString(def))
-}
-
-func envIsSet(key any) bool {
-	return env.IsSet(convert.ToString(key))
 }

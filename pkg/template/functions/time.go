@@ -111,19 +111,19 @@ func (*Time) Local(value any) time.Time {
 }
 
 func (*Time) IsZero(value any) bool {
-	return timeIsZero(value)
+	return convert.ToTime(value).IsZero()
 }
 
 func (*Time) IsAfter(other, value any) bool {
-	return timeIsAfter(other, value)
+	return convert.ToTime(value).After(convert.ToTime(other))
 }
 
 func (*Time) IsBefore(other, value any) bool {
-	return timeIsBefore(other, value)
+	return convert.ToTime(value).Before(convert.ToTime(other))
 }
 
 func (*Time) IsEqual(other, value any) bool {
-	return timeIsEqual(other, value)
+	return convert.ToTime(value).Equal(convert.ToTime(other))
 }
 
 func (*Time) CustomZone(offset, name any) *TimeZone {
@@ -200,22 +200,6 @@ func (*Time) Layout(value any) (string, error) {
 	}
 
 	return layout, nil
-}
-
-func timeIsZero(value any) bool {
-	return convert.ToTime(value).IsZero()
-}
-
-func timeIsAfter(other, value any) bool {
-	return convert.ToTime(value).After(convert.ToTime(other))
-}
-
-func timeIsBefore(other, value any) bool {
-	return convert.ToTime(value).Before(convert.ToTime(other))
-}
-
-func timeIsEqual(other, value any) bool {
-	return convert.ToTime(value).Equal(convert.ToTime(other))
 }
 
 func cachedLocation(zone any) (*time.Location, error) {

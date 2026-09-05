@@ -18,7 +18,14 @@ func (*IP) Equal(other, value any) bool {
 }
 
 func (*IP) IPVersion(value any) int {
-	return ipVersion(value)
+	switch ip := convert.ToIP(value); {
+	case ip.To4() != nil:
+		return 4
+	case ip.To16() != nil:
+		return 6
+	default:
+		return 0
+	}
 }
 
 func (*IP) ToIPv4(value any) net.IP {
@@ -41,12 +48,12 @@ func (*IP) ToIPv6(value any) net.IP {
 	return nil
 }
 
-func (*IP) IsIPv4(value any) bool {
-	return ipIsIPv4(value)
+func (f *IP) IsIPv4(value any) bool {
+	return f.IPVersion(value) == 4
 }
 
-func (*IP) IsIPv6(value any) bool {
-	return ipIsIPv6(value)
+func (f *IP) IsIPv6(value any) bool {
+	return f.IPVersion(value) == 6
 }
 
 func (*IP) IsUnspecified(value any) bool {
@@ -89,23 +96,4 @@ func (*IP) IsLinkLocalMulticast(value any) bool {
 	ip := convert.ToIP(value)
 
 	return ip != nil && ip.IsLinkLocalMulticast()
-}
-
-func ipIsIPv4(value any) bool {
-	return ipVersion(value) == 4
-}
-
-func ipIsIPv6(value any) bool {
-	return ipVersion(value) == 6
-}
-
-func ipVersion(value any) int {
-	switch ip := convert.ToIP(value); {
-	case ip.To4() != nil:
-		return 4
-	case ip.To16() != nil:
-		return 6
-	default:
-		return 0
-	}
 }

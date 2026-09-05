@@ -41,6 +41,12 @@ func (*Random) Pick(args ...any) (any, error) {
 			for iter := rv.MapRange(); iter.Next(); {
 				values = append(values, iter.Value().Interface())
 			}
+		case reflect.Array, reflect.Slice:
+			values = make([]any, rv.Len())
+
+			for i := range rv.Len() {
+				values[i] = rv.Index(i).Interface()
+			}
 		default:
 			values = convert.ToAnySlice(rv.Interface())
 		}
