@@ -32,14 +32,14 @@ var (
 const maxIncludeDepth = 16
 
 type (
-	UnaryPredicate        = func(any) (bool, error)
-	UnaryBoolPredicate    = func(any) bool
-	BinaryPredicate       = func(any, any) (bool, error)
-	BinaryBoolPredicate   = func(any, any) bool
-	TernaryPredicate      = func(any, any, any) (bool, error)
-	TernaryBoolPredicate  = func(any, any, any) bool
-	VariablePredicate     = func(...any) (bool, error)
-	VariableBoolPredicate = func(...any) bool
+	UnaryErrorPredicate    = func(any) (bool, error)
+	UnaryPredicate         = func(any) bool
+	BinaryErrorPredicate   = func(any, any) (bool, error)
+	BinaryPredicate        = func(any, any) bool
+	TernaryErrorPredicate  = func(any, any, any) (bool, error)
+	TernaryPredicate       = func(any, any, any) bool
+	VariadicErrorPredicate = func(...any) (bool, error)
+	VariadicPredicate      = func(...any) bool
 )
 
 func Namespace(n any) func() any {
@@ -212,7 +212,7 @@ func indexOr(item, value any, args []any) any {
 
 func IndexOrSet(args ...any) (any, error) {
 	if len(args) < 3 {
-		return nil, fmt.Errorf("indexOrSet: expected path..., value, item")
+		return nil, fmt.Errorf("indexOrSet: expected ...path, value, item")
 	}
 
 	item, value, keys := popTwo(args)
@@ -230,7 +230,7 @@ func IndexOrSet(args ...any) (any, error) {
 
 func Set(args ...any) (any, error) {
 	if len(args) < 3 {
-		return nil, fmt.Errorf("set: expected path..., value, item")
+		return nil, fmt.Errorf("set: expected ...path, value, item")
 	}
 
 	item, value, keys := popTwo(args)
@@ -267,7 +267,7 @@ func set(item, value any, args []any) (any, error) {
 
 func Unset(args ...any) (any, error) {
 	if len(args) < 2 {
-		return nil, fmt.Errorf("unset: expected path..., item")
+		return nil, fmt.Errorf("unset: expected ...path, item")
 	}
 
 	item, path := popOne(args)
@@ -505,62 +505,102 @@ func popTwo(args []any) (first, second any, rest []any) {
 	return args[len(args)-1], args[len(args)-2], args[:len(args)-2]
 }
 
-func popPredicate(args []any) (any, UnaryPredicate, error) {
+func popPredicate(args []any) ([]any, UnaryErrorPredicate, error) {
 	if len(args) == 0 {
 		return nil, nil, fmt.Errorf("%w: expected predicate, collection", ErrValueRequired)
 	}
 
 	var (
-		items = convert.ToAnySlice(args[len(args)-1])
-		pred  = args[0]
-		fixed = args[1 : len(args)-1]
+		split = len(args) - 1
+		arity = -1
 	)
 
-	switch p := pred.(type) {
-	case VariablePredicate:
-		return items, func(item any) (bool, error) { return p(append(slices.Clone(fixed), item)...) }, nil
-	case VariableBoolPredicate:
-		return items, func(item any) (bool, error) { return p(append(slices.Clone(fixed), item)...), nil }, nil
+	switch args[0].(type) {
+	case UnaryErrorPredicate, UnaryPredicate:
+		arity = 0
+	case BinaryErrorPredicate, BinaryPredicate:
+		arity = 1
+	case TernaryErrorPredicate, TernaryPredicate:
+		arity = 2
 	}
 
-	if len(args) == 1 {
-		return items, func(item any) (bool, error) { return convert.ToBool(item), nil }, nil
+	if arity >= 0 && len(args) >= arity+1 {
+		split = arity + 1
 	}
 
-	fn, err := bindPredicate(pred, fixed)
+	fn, err := bindPredicate(args[:split])
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return items, fn, nil
+	return listArgSlice(args[split:]), fn, nil
 }
 
-func bindPredicate(pred any, fixed []any) (func(any) (bool, error), error) {
+func bindPredicate(args []any) (UnaryErrorPredicate, error) {
+	if len(args) == 0 {
+		return func(v any) (bool, error) { return convert.ToBool(v), nil }, nil
+	}
+
+	var (
+		pred  = args[0]
+		fixed = args[1:]
+	)
+
+	switch p := pred.(type) {
+	case VariadicErrorPredicate:
+		return func(v any) (bool, error) { return p(append(slices.Clone(fixed), v)...) }, nil
+	case VariadicPredicate:
+		return func(v any) (bool, error) { return p(append(slices.Clone(fixed), v)...), nil }, nil
+	}
+
 	switch len(fixed) {
 	case 0:
-		switch p := pred.(type) {
-		case UnaryPredicate:
+		if p, ok := unaryPredicate(pred); ok {
 			return p, nil
-		case UnaryBoolPredicate:
-			return func(v any) (bool, error) { return p(v), nil }, nil
-		case any:
-			return func(item any) (bool, error) { return equalAny(item, pred), nil }, nil
 		}
+
+		return func(v any) (bool, error) { return equalAny(v, pred), nil }, nil
 	case 1:
 		switch p := pred.(type) {
-		case BinaryPredicate:
+		case BinaryErrorPredicate:
 			return func(v any) (bool, error) { return p(fixed[0], v) }, nil
-		case BinaryBoolPredicate:
+		case BinaryPredicate:
 			return func(v any) (bool, error) { return p(fixed[0], v), nil }, nil
 		}
 	case 2:
 		switch p := pred.(type) {
-		case TernaryPredicate:
+		case TernaryErrorPredicate:
 			return func(v any) (bool, error) { return p(fixed[0], fixed[1], v) }, nil
-		case TernaryBoolPredicate:
+		case TernaryPredicate:
 			return func(v any) (bool, error) { return p(fixed[0], fixed[1], v), nil }, nil
 		}
 	}
 
 	return nil, fmt.Errorf("unsupported predicate type %T", pred)
+}
+
+func unaryPredicate(pred any) (UnaryErrorPredicate, bool) {
+	switch p := pred.(type) {
+	case UnaryErrorPredicate:
+		return p, true
+	case UnaryPredicate:
+		return func(v any) (bool, error) { return p(v), nil }, true
+	}
+
+	return nil, false
+}
+
+func unaryPredicates(args []any) ([]UnaryErrorPredicate, error) {
+	preds := make([]UnaryErrorPredicate, 0, len(args))
+
+	for _, pred := range args {
+		p, ok := unaryPredicate(pred)
+		if !ok {
+			return nil, fmt.Errorf("unsupported predicate type %T", pred)
+		}
+
+		preds = append(preds, p)
+	}
+
+	return preds, nil
 }

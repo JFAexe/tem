@@ -410,7 +410,7 @@ func listFlatten(values []any) []any {
 	return out
 }
 
-func quantify(items []any, pred UnaryPredicate, all bool) (bool, error) {
+func quantify(items []any, pred UnaryErrorPredicate, all bool) (bool, error) {
 	if all && len(items) == 0 {
 		return false, nil
 	}

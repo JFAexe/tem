@@ -16,8 +16,9 @@ var (
 	ErrNotSettable  = errors.New("target is not settable")
 )
 
-func Lookup(v reflect.Value, key any) (reflect.Value, error) {
-	if v = IndirectValue(v); !v.IsValid() {
+func Lookup(target, key any) (reflect.Value, error) {
+	v := IndirectValue(target)
+	if !v.IsValid() {
 		return reflect.Value{}, ErrNilPointer
 	}
 
@@ -53,8 +54,9 @@ func Lookup(v reflect.Value, key any) (reflect.Value, error) {
 	return reflect.Value{}, fmt.Errorf("cannot index into type %v", v.Kind())
 }
 
-func Set(v reflect.Value, key, value any) error {
-	if v = IndirectValue(v); !v.IsValid() {
+func Set(target, key, value any) error {
+	v := IndirectValue(target)
+	if !v.IsValid() {
 		return ErrNilPointer
 	}
 
@@ -102,8 +104,9 @@ func Set(v reflect.Value, key, value any) error {
 	return fmt.Errorf("cannot set on type %v", v.Kind())
 }
 
-func Unset(v reflect.Value, key any) error {
-	if v = IndirectValue(v); !v.IsValid() {
+func Unset(target, key any) error {
+	v := IndirectValue(target)
+	if !v.IsValid() {
 		return ErrNilPointer
 	}
 
