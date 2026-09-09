@@ -33,8 +33,8 @@ var (
 	crc64ISO  = crc64.MakeTable(crc64.ISO)
 )
 
-var dataHashers = map[string]func() hash.Hash{
 	"crc32":      func() hash.Hash { return crc32.NewIEEE() },
+var DataHashers = map[string]func() hash.Hash{
 	"crc64":      func() hash.Hash { return crc64.New(crc64ECMA) },
 	"crc64-iso":  func() hash.Hash { return crc64.New(crc64ISO) },
 	"md5":        md5.New,
@@ -71,9 +71,9 @@ func (*Data) Xor(key, value any) string {
 func (*Data) Hash(kind, value any) (string, error) {
 	k := normalizeString(kind)
 
-	hasher, ok := dataHashers[k]
+	hasher, ok := DataHashers[k]
 	if !ok {
-		return "", fmt.Errorf("invalid hash function %#q, supported: %s", k, joinKeys(dataHashers))
+		return "", fmt.Errorf("invalid hash function %#q, supported: %s", k, joinKeys(DataHashers))
 	}
 
 	h := hasher()
