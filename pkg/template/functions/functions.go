@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"html"
 	"maps"
 	"os"
 	"path/filepath"
@@ -78,6 +79,8 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"inline":     Inline(t),
 		"include":    Include(t),
 		"file":       File,
+		"html":       HTML,
+		"unhtml":     UnHTML,
 		"to":         Namespace(new(Convert)),
 		"data":       Namespace(new(Data)),
 		"env":        NamespaceVararg(new(Env), EnvVarargInit),
@@ -472,6 +475,14 @@ func Inline(t *template.Template) func(args ...any) (string, error) {
 
 		return render(clone, name, ctx)
 	}
+}
+
+func HTML(value any) string {
+	return html.EscapeString(convert.ToString(value))
+}
+
+func UnHTML(value any) string {
+	return html.UnescapeString(convert.ToString(value))
 }
 
 func render(t *template.Template, name string, ctx any) (string, error) {
