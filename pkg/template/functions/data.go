@@ -33,8 +33,8 @@ var (
 	crc64ISO  = crc64.MakeTable(crc64.ISO)
 )
 
-	"crc32":      func() hash.Hash { return crc32.NewIEEE() },
 var DataHashers = map[string]func() hash.Hash{
+	"crc32":      func() hash.Hash { return crc32.NewIEEE() },
 	"crc64":      func() hash.Hash { return crc64.New(crc64ECMA) },
 	"crc64-iso":  func() hash.Hash { return crc64.New(crc64ISO) },
 	"md5":        md5.New,
