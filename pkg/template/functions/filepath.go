@@ -23,6 +23,10 @@ type WalkInfo struct {
 
 type Filepath struct{}
 
+func (*Filepath) WorkDir() (string, error) {
+	return os.Getwd()
+}
+
 func (*Filepath) Separator() string {
 	return string(filepath.Separator)
 }

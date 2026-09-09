@@ -60,7 +60,6 @@ func NamespaceVararg[T any](n T, fn func(T, []any) (any, error)) func(...any) (a
 
 func FuncMap(t *template.Template) template.FuncMap {
 	return template.FuncMap{
-		"pwd":        os.Getwd,
 		"hostname":   os.Hostname,
 		"assert":     Assert,
 		"ternary":    Ternary,
