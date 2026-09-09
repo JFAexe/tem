@@ -9,7 +9,7 @@ import (
 	"github.com/JFAexe/tem/pkg/convert"
 )
 
-var layouts = map[string]string{
+var TimeLayouts = map[string]string{
 	"ansic":       time.ANSIC,
 	"unixdate":    time.UnixDate,
 	"ruby":        time.RubyDate,
@@ -61,7 +61,7 @@ func (*Time) Now() time.Time {
 }
 
 func (*Time) Parse(layout, value any) (time.Time, error) {
-	if l, ok := layouts[normalizeString(value)]; ok {
+	if l, ok := TimeLayouts[normalizeString(layout)]; ok {
 		layout = l
 	}
 
@@ -78,7 +78,7 @@ func (*Time) In(zone, value any) (time.Time, error) {
 }
 
 func (*Time) ParseIn(layout, zone, value any) (time.Time, error) {
-	if l, ok := layouts[normalizeString(value)]; ok {
+	if l, ok := TimeLayouts[normalizeString(layout)]; ok {
 		layout = l
 	}
 
@@ -151,12 +151,12 @@ func (*Time) Zone(value any) *TimeZone {
 	}
 }
 
-func (*Time) Format(format, value any) string {
-	if l, ok := layouts[normalizeString(value)]; ok {
-		format = l
+func (*Time) Format(layout, value any) string {
+	if l, ok := TimeLayouts[normalizeString(layout)]; ok {
+		layout = l
 	}
 
-	return convert.ToTime(value).Format(convert.ToString(format))
+	return convert.ToTime(value).Format(convert.ToString(layout))
 }
 
 func (*Time) ToString(value any) string {
@@ -194,9 +194,9 @@ func (*Time) Until(value any) time.Duration {
 func (*Time) Layout(value any) (string, error) {
 	k := normalizeString(value)
 
-	layout, ok := layouts[k]
+	layout, ok := TimeLayouts[k]
 	if !ok {
-		return "", fmt.Errorf("invalid layout %#q, supported: %s", k, joinKeys(layouts))
+		return "", fmt.Errorf("invalid layout %#q, supported: %s", k, joinKeys(TimeLayouts))
 	}
 
 	return layout, nil
