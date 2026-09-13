@@ -196,11 +196,11 @@ func (*String) Truncate(length, value any) string {
 	return str[start:end]
 }
 
-func (*String) IndentWith(char, level, value any) string {
+func (*String) IndentWith(level, indent, value any) string {
 	var (
 		str = convert.ToString(value)
+		ind = convert.ToString(indent)
 		lvl = convert.ToInt(level)
-		chr = convert.ToRune(char)
 	)
 
 	if lvl <= 0 || str == "" {
@@ -211,7 +211,7 @@ func (*String) IndentWith(char, level, value any) string {
 		builder strings.Builder
 
 		newlines = strings.Count(str, "\n")
-		prefix   = strings.Repeat(string(chr), lvl)
+		prefix   = strings.Repeat(ind, lvl)
 	)
 
 	builder.Grow(len(str) + lvl*newlines + 1)

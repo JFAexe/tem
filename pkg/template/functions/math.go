@@ -99,23 +99,31 @@ func (*Math) Rem(y, x any) float64 {
 	return math.Remainder(xf, yf)
 }
 
-func (*Math) Round(value any, precision ...any) float64 {
+func (*Math) Round(args ...any) (float64, error) {
 	var (
-		v = convert.ToFloat64(value)
-		p = 0
+		v float64
+		p int
 	)
 
-	if len(precision) > 0 {
-		p = convert.ToInt(precision[0])
+	switch len(args) {
+	case 0:
+		return 0, fmt.Errorf("%w: value, or precision, value", ErrValueRequired)
+	case 1:
+		v = convert.ToFloat64(args[0])
+	case 2:
+		v = convert.ToFloat64(args[1])
+		p = convert.ToInt(args[0])
+	default:
+		return 0, fmt.Errorf("%w: max is 2", ErrTooManyArguments)
 	}
 
 	pow := math.Pow(10, convert.SafeIntToFloat64(p))
 
 	if math.IsInf(pow, 0) || pow == 0 {
-		return v
+		return v, nil
 	}
 
-	return math.Round(v*pow) / pow
+	return math.Round(v*pow) / pow, nil
 }
 
 func (*Math) Floor(value any) float64 {
@@ -131,7 +139,9 @@ func (*Math) Abs(value any) float64 {
 }
 
 func (*Math) Between(minimum, maximum, value any) bool {
-	return mathBetween(minimum, maximum, value)
+	v := convert.ToFloat64(value)
+
+	return v >= convert.ToFloat64(minimum) && v <= convert.ToFloat64(maximum)
 }
 
 func (*Math) Percent(part, total any) float64 {
@@ -178,10 +188,4 @@ func (*Math) Max(values ...any) float64 {
 
 func (*Math) Clamp(minimum, maximum, value any) (result float64) {
 	return convert.Clamp(convert.ToFloat64(value), convert.ToFloat64(minimum), convert.ToFloat64(maximum))
-}
-
-func mathBetween(minimum, maximum, value any) bool {
-	v := convert.ToFloat64(value)
-
-	return v >= convert.ToFloat64(minimum) && v <= convert.ToFloat64(maximum)
 }

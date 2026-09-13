@@ -61,7 +61,7 @@ func NamespaceVararg[T any](n T, fn func(T, []any) (any, error)) func(...any) (a
 
 func FuncMap(t *template.Template) template.FuncMap {
 	return template.FuncMap{
-		"hostname":   os.Hostname,
+		"hostname":   Hostname,
 		"assert":     Assert,
 		"ternary":    Ternary,
 		"default":    Default,
@@ -100,6 +100,10 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"type":       Namespace(new(Type)),
 		"uuid":       Namespace(new(UUID)),
 	}
+}
+
+func Hostname() (string, error) {
+	return os.Hostname()
 }
 
 func Assert(args ...any) (string, error) {
