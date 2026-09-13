@@ -171,51 +171,51 @@ func (*Predicate) View(args ...any) (UnaryErrorPredicate, error) {
 	}, nil
 }
 
-func (*Predicate) Value() map[string]any {
+func (*Predicate) Value() any {
 	return maps.Clone(valuePredicates)
 }
 
-func (*Predicate) Type() map[string]any {
+func (*Predicate) Type() any {
 	return maps.Clone(typePredicates)
 }
 
-func (*Predicate) Env() map[string]any {
+func (*Predicate) Env() any {
 	return maps.Clone(envPredicates)
 }
 
-func (*Predicate) Filepath() map[string]any {
+func (*Predicate) Filepath() any {
 	return maps.Clone(filepathPredicates)
 }
 
-func (*Predicate) Path() map[string]any {
+func (*Predicate) Path() any {
 	return maps.Clone(pathPredicates)
 }
 
-func (*Predicate) Regex() map[string]any {
+func (*Predicate) Regex() any {
 	return maps.Clone(regexPredicates)
 }
 
-func (*Predicate) String() map[string]any {
+func (*Predicate) String() any {
 	return maps.Clone(stringPredicates)
 }
 
-func (*Predicate) Time() map[string]any {
+func (*Predicate) Time() any {
 	return maps.Clone(timePredicates)
 }
 
-func (*Predicate) UUID() map[string]any {
+func (*Predicate) UUID() any {
 	return maps.Clone(uuidPredicates)
 }
 
-func (*Predicate) IP() map[string]any {
+func (*Predicate) IP() any {
 	return maps.Clone(ipPredicates)
 }
 
-func (*Predicate) Math() map[string]any {
+func (*Predicate) Math() any {
 	return maps.Clone(mathPredicates)
 }
 
-func (*Predicate) Compare() map[string]any {
+func (*Predicate) Compare() any {
 	return maps.Clone(comparePredicates)
 }
 

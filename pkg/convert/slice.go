@@ -1,6 +1,7 @@
 package convert
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"slices"
@@ -50,6 +51,69 @@ func ToSlice[T any, S []T](value any, fn ConvertFunc[T]) S {
 	}
 
 	return S{fn(value)}
+}
+
+func ToSliceDynamic(value any, vf func(any) any, vt reflect.Type) (any, error) {
+	empty := reflect.MakeSlice(reflect.SliceOf(vt), 0, 0)
+
+	if value == nil {
+		return empty.Interface(), nil
+	}
+
+	rv := reflection.IndirectValue(value)
+	if !rv.IsValid() {
+		return empty.Interface(), nil
+	}
+
+	if rv.Kind() == reflect.Slice && rv.Type().AssignableTo(reflect.SliceOf(vt)) {
+		if rv.IsNil() {
+			return empty.Interface(), nil
+		}
+
+		out := reflect.MakeSlice(reflect.SliceOf(vt), rv.Len(), rv.Len())
+
+		reflect.Copy(out, rv)
+
+		return out.Interface(), nil
+	}
+
+	var (
+		out = empty
+		set = func(e reflect.Value) error {
+			if !e.IsValid() {
+				e = reflect.Zero(vt)
+			}
+			if !e.Type().AssignableTo(vt) {
+				return fmt.Errorf("type mismatch: got %s, want %s", e.Type(), vt)
+			}
+			out = reflect.Append(out, e)
+
+			return nil
+		}
+	)
+
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := range rv.Len() {
+			e := rv.Index(i)
+
+			if e.Type() == vt {
+				if err := set(e); err != nil {
+					return nil, err
+				}
+			} else {
+				if err := set(reflect.ValueOf(vf(e.Interface()))); err != nil {
+					return nil, err
+				}
+			}
+		}
+	default:
+		if err := set(reflect.ValueOf(vf(value))); err != nil {
+			return nil, err
+		}
+	}
+
+	return out.Interface(), nil
 }
 
 func ToAnySlice(value any) []any {

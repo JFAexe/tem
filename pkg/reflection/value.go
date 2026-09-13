@@ -114,6 +114,12 @@ func IsStruct(v any) bool {
 	return ok
 }
 
+func IsFunc(v any) bool {
+	_, ok := FuncValue(v)
+
+	return ok
+}
+
 func BoolValue(v any) (reflect.Value, bool) {
 	if rv := IndirectValue(v); rv.IsValid() && rv.Kind() == reflect.Bool {
 		return rv, true
@@ -180,6 +186,14 @@ func MapValue(v any) (reflect.Value, bool) {
 
 func StructValue(v any) (reflect.Value, bool) {
 	if rv := IndirectValue(v); rv.IsValid() && rv.Kind() == reflect.Struct {
+		return rv, true
+	}
+
+	return reflect.Value{}, false
+}
+
+func FuncValue(v any) (reflect.Value, bool) {
+	if rv := IndirectValue(v); rv.IsValid() && rv.Kind() == reflect.Func {
 		return rv, true
 	}
 

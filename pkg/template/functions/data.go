@@ -223,7 +223,7 @@ func (*Data) FromDotEnv(data any) (env.Map, error) {
 }
 
 func (*Data) ToDotEnv(value any) (string, error) {
-	out, err := env.MarshalOptions(convert.ToStringStringMap(value), env.WithEncoderExpand(false))
+	out, err := env.MarshalOptions(convert.ToMap(value, convert.ToString, convert.ToString), env.WithEncoderExpand(false))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal .env: %w", err)
 	}
@@ -242,7 +242,7 @@ func (*Data) FromDotEnvExpanded(data any) (env.Map, error) {
 }
 
 func (*Data) ToDotEnvExpanded(value any) (string, error) {
-	out, err := env.MarshalOptions(convert.ToStringStringMap(value), env.WithEncoderExpand(true), env.WithEncoderLookup(env.RawLookup))
+	out, err := env.MarshalOptions(convert.ToMap(value, convert.ToString, convert.ToString), env.WithEncoderExpand(true), env.WithEncoderLookup(env.RawLookup))
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal .env: %w", err)
 	}
@@ -290,7 +290,9 @@ func (*Data) ToCSV(delim, data any) (string, error) {
 	w := csv.NewWriter(&b)
 	w.Comma = convert.ToRune(delim)
 
-	d := convert.ToSlice(data, convert.ToStringStringMap)
+	d := convert.ToSlice(data, func(v any) map[string]string {
+		return convert.ToMap(v, convert.ToString, convert.ToString)
+	})
 
 	if len(d) == 0 {
 		return "", nil

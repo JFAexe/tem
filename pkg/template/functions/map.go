@@ -13,7 +13,7 @@ func MapVarargInit(n *Map, args []any) (any, error) {
 	return n.New(args...)
 }
 
-func (*Map) New(args ...any) (map[string]any, error) {
+func (*Map) New(args ...any) (map[any]any, error) {
 	if len(args) == 1 {
 		var (
 			nested = listArgSlice(args)
@@ -21,9 +21,15 @@ func (*Map) New(args ...any) (map[string]any, error) {
 		)
 
 		for _, item := range nested {
-			if pair, ok := item.([]any); ok && len(pair) > 1 {
-				flat = append(flat, pair[0], pair[1])
+			if pair, ok := item.([]any); ok {
+				if len(pair) >= 2 {
+					flat = append(flat, pair[0], pair[1])
+				}
+
+				continue
 			}
+
+			flat = append(flat, item)
 		}
 
 		args = flat
@@ -33,23 +39,23 @@ func (*Map) New(args ...any) (map[string]any, error) {
 		return nil, fmt.Errorf("amount of arguments for key-value pairs should be even, got %d: %v", len(args), args)
 	}
 
-	out := make(map[string]any, len(args)/2)
+	out := make(map[any]any, len(args)/2)
 
 	for i := 0; i < len(args); i += 2 {
-		out[convert.ToString(args[i])] = args[i+1]
+		out[args[i]] = args[i+1]
 	}
 
 	return out, nil
 }
 
-func (*Map) Merge(args ...any) map[string]any {
+func (*Map) Merge(args ...any) map[any]any {
 	if len(args) == 0 {
-		return make(map[string]any)
+		return make(map[any]any)
 	}
 
 	var (
 		to, with = popOne(args)
-		t        = convert.ToStringAnyMap(to)
+		t        = convert.ToAnyMap(to)
 	)
 
 	for _, w := range with {
@@ -59,15 +65,15 @@ func (*Map) Merge(args ...any) map[string]any {
 		}
 
 		for iter := rv.MapRange(); iter.Next(); {
-			t[convert.ToString(iter.Key().Interface())] = iter.Value().Interface()
+			t[iter.Key().Interface()] = iter.Value().Interface()
 		}
 	}
 
 	return t
 }
 
-func (*Map) Pick(args ...any) map[string]any {
-	out := make(map[string]any)
+func (*Map) Pick(args ...any) map[any]any {
+	out := make(map[any]any)
 
 	if len(args) == 0 {
 		return out
@@ -87,15 +93,15 @@ func (*Map) Pick(args ...any) map[string]any {
 		}
 
 		if val := rv.MapIndex(kv); val.IsValid() {
-			out[convert.ToString(k)] = val.Interface()
+			out[k] = val.Interface()
 		}
 	}
 
 	return out
 }
 
-func (*Map) Omit(args ...any) map[string]any {
-	out := make(map[string]any)
+func (*Map) Omit(args ...any) map[any]any {
+	out := make(map[any]any)
 
 	if len(args) == 0 {
 		return out
@@ -103,11 +109,11 @@ func (*Map) Omit(args ...any) map[string]any {
 
 	var (
 		m, keys = popOne(args)
-		set     = make(map[string]struct{}, len(keys))
+		set     = make(map[any]struct{}, len(keys))
 	)
 
 	for _, k := range listFlatten(keys) {
-		set[convert.ToString(k)] = struct{}{}
+		set[k] = struct{}{}
 	}
 
 	rv, ok := reflection.MapValue(m)
@@ -118,10 +124,10 @@ func (*Map) Omit(args ...any) map[string]any {
 	iter := rv.MapRange()
 
 	for iter.Next() {
-		ks := convert.ToString(iter.Key().Interface())
+		k := iter.Key().Interface()
 
-		if _, ok := set[ks]; !ok {
-			out[ks] = iter.Value().Interface()
+		if _, ok := set[k]; !ok {
+			out[k] = iter.Value().Interface()
 		}
 	}
 

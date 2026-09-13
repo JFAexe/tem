@@ -397,7 +397,7 @@ func Include(t *template.Template) func(args ...any) (string, error) {
 			return "", fmt.Errorf("%w: expected name, or context, name", ErrValueRequired)
 		case 1:
 			name = convert.ToString(args[0])
-			ctx = make(map[string]any)
+			ctx = make(map[any]any)
 		case 2:
 			name = convert.ToString(args[1])
 			ctx = args[0]
@@ -424,7 +424,7 @@ func Inline(t *template.Template) func(args ...any) (string, error) {
 			return "", fmt.Errorf("%w: expected template, or context, template, or ...options, context, template", ErrValueRequired)
 		case 1:
 			tpl = args[0]
-			ctx = make(map[string]any)
+			ctx = make(map[any]any)
 		case 2:
 			tpl = args[1]
 			ctx = args[0]
@@ -504,7 +504,7 @@ func normalizeString(value any) string {
 }
 
 func joinKeys(value any) string {
-	return strings.Join(slices.Sorted(maps.Keys(convert.ToStringAnyMap(value))), ", ")
+	return strings.Join(slices.Sorted(maps.Keys(convert.ToMap(value, convert.ToString, convert.ToAny))), ", ")
 }
 
 func popOne(args []any) (first any, rest []any) {
