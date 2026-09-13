@@ -32,71 +32,81 @@ var (
 	date    = "unknown date"
 )
 
+const (
+	flagInput        = "input"
+	flagOutput       = "output"
+	flagDelimLeft    = "delim-left"
+	flagDelimRight   = "delim-right"
+	flagEnv          = "env"
+	flagEnvFile      = "env-file"
+	flagTemplateFile = "template-file"
+)
+
 var app = &cli.Command{
 	Name:    "tem",
 	Usage:   "tiny go template cli renderer",
 	Version: fmt.Sprintf("%s (%s) built using %s on %s", version, commit, runtime.Version(), date),
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:    "input",
+			Name:    flagInput,
 			Aliases: []string{"i"},
 			Sources: cli.EnvVars("TEM_INPUT_FILE"),
 			Value:   "-",
-			Usage:   "input file path\vreads from stdin if not specified or set to '-'\r",
+			Usage:   "input file path\nreads from stdin if not specified or set to `-`",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringFlag{
-			Name:    "output",
+			Name:    flagOutput,
 			Aliases: []string{"o"},
 			Sources: cli.EnvVars("TEM_OUTPUT_FILE"),
 			Value:   "-",
-			Usage:   "\vout file path\vwrites to stdout if not specified or set to '-'\r",
+			Usage:   "output file path\nwrites to stdout if not specified or set to `-`",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringFlag{
-			Name:    "delim-left",
+			Name:    flagDelimLeft,
 			Aliases: []string{"l"},
 			Sources: cli.EnvVars("TEM_DELIM_LEFT"),
 			Value:   template.DefaultLeftDelim,
-			Usage:   "left template delimiter\vresets to default if set to an empty string\r",
+			Usage:   "left template delimiter\nresets to default if set to an empty string",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringFlag{
-			Name:    "delim-right",
+			Name:    flagDelimRight,
 			Aliases: []string{"r"},
 			Sources: cli.EnvVars("TEM_DELIM_RIGHT"),
 			Value:   template.DefaultRightDelim,
-			Usage:   "right template delimiter\vresets to default if set to an empty string\r",
+			Usage:   "right template delimiter\nresets to default if set to an empty string",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringMapFlag{
-			Name:    "env",
+			Name:    flagEnv,
 			Aliases: []string{"e"},
-			Usage:   "list of values which are accessible as envs\vformat: KEY=val\r",
+			Usage:   "list of values accessible as envs",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringSliceFlag{
-			Name:    "env-file",
+			Name:    flagEnvFile,
 			Aliases: []string{"f"},
-			Usage:   "list of .env file paths\vonly real paths are allowed\r",
+			Usage:   "list of .env file paths\nonly real paths are allowed",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringSliceFlag{
-			Name:    "template-file",
+			Name:    flagTemplateFile,
 			Aliases: []string{"t"},
-			Usage:   "list of template definition file paths\vboth paths and globs are allowed\r",
+			Usage:   "list of template definition file paths\nboth paths and globs are allowed",
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -111,36 +121,64 @@ var app = &cli.Command{
 			"Writes raw template to output and error to stderr on failure",
 			"Template definitions are parsed after root template",
 			"Passed envs and read .envs take precedence over process environment",
-			"Read .envs are parsed after passed envs",
+			"Read .envs are parsed after flag envs",
 			"Env values are expanded on lookup",
 			"Supported substitutions: `:-`, `-`, `:=`, `=`, `:+`, `+`, `:?`, `?`",
 			"Glob patterns support `**`, `{groups,...}` and `[classes]`",
 		},
 	},
+	CustomRootCommandHelpTemplate: strings.Join([]string{
+		"\n {{ .Name }} - {{ .Usage }}",
+		"Usage: {{ index .Metadata `name` }} [options] {{ if index .Metadata `exec` }}-- <command> [arguments]{{ end }}",
+		"Options:\n{{- range .VisibleFlags }}\n{{ .String | nindent 3 }}{{- end }}",
+		"Notes:\n{{- range index .Metadata `notes` }}\n {{ . | nindent 3 }}{{- end }}",
+		"Version: {{ .Version }}\n\n",
+	}, "\n\n "),
 	Action: run,
+}
+
+func init() {
+	cli.FlagStringer = func(f cli.Flag) string {
+		d, ok := f.(cli.DocGenerationFlag)
+		if !ok {
+			return ""
+		}
+
+		var b strings.Builder
+
+		for i, n := range f.Names() {
+			if i > 0 {
+				fmt.Fprint(&b, ", ")
+			}
+
+			fmt.Fprint(&b, strings.Repeat("-", min(max(len(n), 1), 2)), n)
+		}
+
+		if envs := d.GetEnvVars(); len(envs) > 0 {
+			fmt.Fprintf(&b, ", $%s", strings.Join(envs, ", $"))
+		}
+
+		if sl, ok := f.(cli.DocGenerationMultiValueFlag); ok && sl.IsMultiValueFlag() {
+			fmt.Fprintf(&b, " [%s, ...]", d.TypeName())
+		}
+
+		if d.IsDefaultVisible() {
+			if s := d.GetValue(); d.TakesValue() && s != "" {
+				fmt.Fprintf(&b, " (default: %s)", s)
+			}
+		}
+
+		if s := d.GetUsage(); s != "" {
+			fmt.Fprintf(&b, "\n\n  %s", strings.ReplaceAll(s, "\n", "\n  "))
+		}
+
+		return b.String()
+	}
 }
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-
-	flagger := cli.FlagStringer
-
-	cli.FlagStringer = func(flag cli.Flag) string {
-		return strings.NewReplacer(
-			"\t", "\n\n\t",
-			"\v", "\n\t",
-			"\r ", "\n\t\n\t",
-		).Replace(flagger(flag))
-	}
-
-	cli.RootCommandHelpTemplate = strings.Join([]string{
-		"\n {{ .Name }} - {{ .Usage }}",
-		"Usage: {{ index .Metadata `name` }} [flags] {{ if index .Metadata `exec` }}-- <command> [arguments]{{ end }}",
-		"Flags:\n{{- range .VisibleFlags }}\n{{ .String | nindent 3 }}{{- end }}",
-		"Notes:\n{{- range index .Metadata `notes` }}\n {{ . | nindent 3 }}{{- end }}",
-		"Version: {{ .Version }}\n\n",
-	}, "\n\n ")
 
 	if err := app.Run(ctx, os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -152,13 +190,13 @@ func main() {
 func run(ctx context.Context, cmd *cli.Command) error {
 	var (
 		args        = cmd.Args().Slice()
-		inputPath   = cmd.String("input")
-		outputPath  = cmd.String("output")
-		delimLeft   = cmd.String("delim-left")
-		delimRight  = cmd.String("delim-right")
-		envs        = cmd.StringMap("env")
-		envFiles    = cmd.StringSlice("env-file")
-		definitions = cmd.StringSlice("template-file")
+		inputPath   = cmd.String(flagInput)
+		outputPath  = cmd.String(flagOutput)
+		delimLeft   = cmd.String(flagDelimLeft)
+		delimRight  = cmd.String(flagDelimRight)
+		envs        = cmd.StringMap(flagEnv)
+		envFiles    = cmd.StringSlice(flagEnvFile)
+		definitions = cmd.StringSlice(flagTemplateFile)
 
 		inputFile  = os.Stdin
 		outputFile = os.Stdout
