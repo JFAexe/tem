@@ -214,7 +214,7 @@ func (*String) IndentWith(level, indent, value any) string {
 		prefix   = strings.Repeat(ind, lvl)
 	)
 
-	builder.Grow(len(str) + lvl*newlines + 1)
+	builder.Grow(len(str) + len(prefix)*newlines)
 
 	for part := range strings.SplitSeq(str, "\n") {
 		if !isSpace(part) {
@@ -229,11 +229,11 @@ func (*String) IndentWith(level, indent, value any) string {
 }
 
 func (f *String) Indent(level, value any) string {
-	return f.IndentWith(' ', level, value)
+	return f.IndentWith(level, " ", value)
 }
 
-func (f *String) IndentWithN(char, level, value any) string {
-	str := f.IndentWith(char, level, value)
+func (f *String) IndentWithN(level, indent, value any) string {
+	str := f.IndentWith(level, indent, value)
 
 	if isSpace(str) || strings.HasPrefix(str, "\n") {
 		return str
@@ -243,7 +243,7 @@ func (f *String) IndentWithN(char, level, value any) string {
 }
 
 func (f *String) IndentN(level, value any) string {
-	return f.IndentWithN(' ', level, value)
+	return f.IndentWithN(level, " ", value)
 }
 
 func (f *String) Fold(length, value any) string {
