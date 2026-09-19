@@ -69,6 +69,7 @@ func FuncMap(t *template.Template) template.FuncMap {
 		"zero":       Zero,
 		"isZero":     IsZero,
 		"isEmpty":    IsEmpty,
+		"slice":      Slice,
 		"index":      Index,
 		"indexOr":    IndexOr,
 		"indexOrSet": IndexOrSet,
@@ -162,6 +163,80 @@ func IsZero(value any) bool {
 
 func IsEmpty(value any) bool {
 	return reflection.IsEmpty(value)
+}
+
+func Slice(args ...any) (any, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("slice: missing list/string")
+	}
+
+	item, indices := popOne(args)
+
+	return slice(item, indices)
+}
+
+func slice(item any, args []any) (any, error) {
+	indices := listFlatten(args)
+
+	if len(indices) > 2 {
+		return nil, fmt.Errorf("slice: expected at most two indices, got %d", len(indices))
+	}
+
+	v := reflection.IndirectValue(reflect.ValueOf(item))
+
+	var (
+		runes  []rune
+		length int
+	)
+
+	switch v.Kind() {
+	case reflect.String:
+		runes = []rune(v.String())
+		length = len(runes)
+	case reflect.Slice, reflect.Array:
+		length = v.Len()
+	default:
+		return nil, fmt.Errorf("slice: expected list or string, got %v", item)
+	}
+
+	start, end := 0, length
+
+	for i, index := range indices {
+		n, err := reflection.ResolveIndex(index)
+		if err != nil {
+			return nil, fmt.Errorf("index (%d): %w", i, err)
+		}
+
+		if idx := int(n); i == 0 {
+			start = idx
+		} else {
+			end = idx
+		}
+	}
+
+	if start < 0 {
+		start += length
+	}
+
+	if end < 0 {
+		end += length
+	}
+
+	if start < 0 || start > length || end < start || end > length {
+		return nil, fmt.Errorf("slice: index out of range [%d:%d] (length %d)", start, end, length)
+	}
+
+	if v.Kind() == reflect.String {
+		return string(runes[start:end]), nil
+	}
+
+	out := make([]any, end-start)
+
+	for i := start; i < end; i++ {
+		out[i-start] = v.Index(i).Interface()
+	}
+
+	return out, nil
 }
 
 func Index(args ...any) (any, error) {
