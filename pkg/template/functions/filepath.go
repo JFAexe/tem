@@ -101,7 +101,7 @@ func (*Filepath) TrimExt(value any) string {
 }
 
 func (*Filepath) Join(values ...any) string {
-	return filepath.Join(convert.ToStringSlice(values)...)
+	return filepath.Join(convert.ToStringSlice(listConcat(values))...)
 }
 
 func (*Filepath) Split(value any) *DirFile {

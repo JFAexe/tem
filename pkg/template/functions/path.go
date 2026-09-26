@@ -82,7 +82,7 @@ func (*Path) TrimExt(value any) string {
 }
 
 func (*Path) Join(values ...any) string {
-	return path.Join(convert.ToStringSlice(values)...)
+	return path.Join(convert.ToStringSlice(listConcat(values))...)
 }
 
 func (*Path) Split(value any) *DirFile {
