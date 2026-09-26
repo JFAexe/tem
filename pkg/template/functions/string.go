@@ -155,6 +155,49 @@ func (*String) Fields(value any) []string {
 	return strings.Fields(convert.ToString(value))
 }
 
+func (*String) Chunk(size, value any) []string {
+	var (
+		str = convert.ToString(value)
+		n   = convert.ToInt(size)
+	)
+
+	if str == "" || n <= 0 {
+		return nil
+	}
+
+	total := utf8.RuneCountInString(str)
+
+	if n >= total {
+		return []string{str}
+	}
+
+	chunks := make([]string, 0, total/n+1)
+
+	var (
+		start, count int
+	)
+
+	for i := 0; i < len(str); {
+		_, w := utf8.DecodeRuneInString(str[i:])
+
+		i += w
+		count++
+
+		if count == n {
+			chunks = append(chunks, str[start:i])
+
+			start = i
+			count = 0
+		}
+	}
+
+	if start < len(str) {
+		chunks = append(chunks, str[start:])
+	}
+
+	return chunks
+}
+
 func (*String) Truncate(length, value any) string {
 	var (
 		str  = convert.ToString(value)
@@ -166,13 +209,13 @@ func (*String) Truncate(length, value any) string {
 	}
 
 	var (
+		count, start int
+
 		total    = utf8.RuneCountInString(str)
 		keep     = total + size
 		negative = size < 0 && keep > 0
 		positive = size >= 0 && total > size
-
-		count, start int
-		end          = len(str)
+		end      = len(str)
 	)
 
 	for i, w := 0, 0; i < len(str); i += w {
